@@ -29,4 +29,4 @@ and picks their team.
 - **ESPN:** the league must be viewable to the public (League → Settings → Edit Settings → Basic Settings →
   Make League Viewable to Public). This only lets people see rosters and scores.
 - **Sleeper:** works as is.
-- Superflex and other special lineup slots are flagged but not handled yet.
+- Lineup slots: QB, RB, WR, TE, FLEX, superflex, RB/WR and WR/TE flex, K and D/ST. IDP slots are flagged but not handled.

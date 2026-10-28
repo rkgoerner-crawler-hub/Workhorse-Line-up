@@ -185,7 +185,7 @@
   function buildDB(shared, raw) {
     const week = shared.week;
     const F = shared.fields;
-    let scorer, carry, slots, bench, recPts, ptd, name, id, bestBall = false, noAdds = false, noTrades = false;
+    let scorer, carry, slots, bench, recPts, ptd, name, id, bestBall = false, noAdds = false, noTrades = false, playoffStart = 15, playoffTeams = 6;
     const unsupported = {};
     if (raw.platform === 'espn') {
       const st = raw.league.settings || {};
@@ -197,7 +197,8 @@
       ['QB', 'RB', 'WR', 'TE'].forEach(p => { if (posItems[p][23]) carry[p] = posItems[p][23]; });
       const counts = {};
       Object.entries((st.rosterSettings || {}).lineupSlotCounts || {}).forEach(([k, v]) => { if (v) counts[Number(k)] = v; });
-      const SLOTMAP = { 0: 'QB', 2: 'RB', 4: 'WR', 6: 'TE', 23: 'FLEX', 17: 'K', 16: 'DST' };
+      // ESPN lineup slot IDs: 0 QB, 2 RB, 4 WR, 6 TE, 3 RB/WR, 5 WR/TE, 23 FLEX, 7 OP (superflex), 17 K, 16 D/ST.
+      const SLOTMAP = { 0: 'QB', 2: 'RB', 4: 'WR', 6: 'TE', 3: 'RBWR', 5: 'WRTE', 23: 'FLEX', 7: 'SFLEX', 17: 'K', 16: 'DST' };
       slots = {};
       Object.entries(SLOTMAP).forEach(([sid, n]) => { slots[n] = counts[sid] || 0; });
       Object.entries(counts).forEach(([sid, n]) => { if (!SLOTMAP[sid] && sid !== '20' && sid !== '21') unsupported[sid] = n; });
@@ -206,13 +207,16 @@
       ptd = posItems.QB[4] || 0;
       name = (st.name || '').trim();
       id = raw.league.id;
+      const ss = st.scheduleSettings || {};
+      playoffStart = (ss.matchupPeriodCount || 14) * (ss.matchupPeriodLength || 1) + 1;
+      playoffTeams = ss.playoffTeamCount || 6;
     } else {
       const lg = raw.league, st = lg.settings || {}, sc = lg.scoring_settings || {};
       scorer = (pos, s, exact, wc) => sleeperScore(sc, pos, s, exact, wc);
       carry = {};
       if (Number(sc.rush_att)) ['QB', 'RB', 'WR', 'TE'].forEach(p => { carry[p] = Number(sc.rush_att); });
-      const SMAP = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', FLEX: 'FLEX', K: 'K', DEF: 'DST' };
-      slots = { QB: 0, RB: 0, WR: 0, TE: 0, FLEX: 0, K: 0, DST: 0 };
+      const SMAP = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', FLEX: 'FLEX', SUPER_FLEX: 'SFLEX', WRRB_FLEX: 'RBWR', REC_FLEX: 'WRTE', K: 'K', DEF: 'DST' };
+      slots = { QB: 0, RB: 0, WR: 0, TE: 0, RBWR: 0, WRTE: 0, FLEX: 0, SFLEX: 0, K: 0, DST: 0 };
       (lg.roster_positions || []).forEach(x => {
         if (SMAP[x]) slots[SMAP[x]]++;
         else if (!['BN', 'IR', 'TAXI'].includes(x)) unsupported[x] = (unsupported[x] || 0) + 1;
@@ -225,7 +229,13 @@
       bestBall = !!st.best_ball;
       noAdds = !!st.disable_adds;
       noTrades = !!st.disable_trades;
+      playoffStart = st.playoff_week_start || 15;
+      playoffTeams = st.playoff_teams || 6;
     }
+    // Fantasy playoff weeks: one week per round, enough rounds for the playoff field (6 teams = 3 rounds).
+    const rounds = Math.max(1, Math.ceil(Math.log2(Math.max(2, playoffTeams))));
+    const playoffWeeks = [];
+    for (let w = playoffStart; w < playoffStart + rounds && w <= 18; w++) playoffWeeks.push(w);
     const label = [recPts === 1 ? 'PPR' : recPts === 0.5 ? 'Half PPR' : recPts ? recPts + ' per catch' : 'Standard'];
     if (ptd && ptd !== 4) label.push(ptd + '-pt pass TD');
     const cv = Object.values(carry);
@@ -263,7 +273,7 @@
     const matchESPN = (fullName, pos) => { const m = byNP[norm(fullName) + '|' + pos] || []; return m.length === 1 ? m[0] : ''; };
 
     // League: teams, rosters, box scores, FAAB.
-    const teams = {}, rostered = {}, rosters = {}, standings = {}, box = {};
+    const teams = {}, rostered = {}, rosters = {}, standings = {}, box = {}, matchups = {};
     const unmatched = [];
     let faab = null;
     if (raw.platform === 'espn') {
@@ -289,6 +299,7 @@
         const wk = {};
         (bd.schedule || []).forEach(m => {
           if (m.matchupPeriodId !== w) return;
+          if (m.home && m.away) (matchups[w] = matchups[w] || []).push([m.home.teamId, m.away.teamId]);
           ['home', 'away'].forEach(side => {
             const t = m[side];
             if (!t) return;
@@ -344,6 +355,9 @@
         if (!ms) return;
         w = Number(w);
         const wk = {};
+        const pairs = {};
+        ms.forEach(m => { if (m.matchup_id != null) (pairs[m.matchup_id] = pairs[m.matchup_id] || []).push(m.roster_id); });
+        matchups[w] = Object.values(pairs).filter(p => p.length === 2);
         ms.forEach(m => {
           const starters = new Set(m.starters || []), pp = m.players_points || {};
           wk[m.roster_id] = (m.players || []).map(pid => {
@@ -377,13 +391,14 @@
     const league = {
       name, id, platform: raw.platform, bestBall, noAdds, noTrades, standings, myTeam: teamIds.length ? Math.min(...teamIds) : 1,
       teams, size: teamIds.length, slots, rosterSize: Object.values(slots).reduce((a, b) => a + b, 0) + bench, carry,
-      scoringLabel: label.join(' · '), rostered, rosters, box, faab, week,
+      scoringLabel: label.join(' · '), rostered, rosters, box, faab, week, matchups, playoffWeeks,
       asOf: now.toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' ET',
       unsupported, unmatched
     };
     return {
       week, weeks: shared.weeks, asOf: shared.asOf, version: shared.version, players, trending: shared.trending || {},
-      league, kickoffs: (shared.kickoffs || {})[String(week)] || {}, season: { weeks: shared.past, players: season }, picks: {}
+      league, kickoffs: (shared.kickoffs || {})[String(week)] || {}, season: { weeks: shared.past, players: season }, picks: {},
+      nfl: { opp: shared.opp || {}, allow: shared.allow || {} }, dataTime: Date.now()
     };
   }
 

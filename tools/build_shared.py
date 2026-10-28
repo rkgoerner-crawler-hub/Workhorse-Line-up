@@ -72,15 +72,21 @@ def main():
 
     # NFL schedule from ESPN: bye weeks and kickoff times (ms since epoch) for every week.
     sched = json.load(open(P("schedule.json")))
-    byes, kick = {}, {}
+    byes, kick, opp = {}, {}, {}
+    pro_abbr = {x.get("id"): x.get("abbrev", "").upper().replace("WSH", "WAS") for x in sched.get("settings", {}).get("proTeams", [])}
     for x in sched.get("settings", {}).get("proTeams", []):
-        abbr = x.get("abbrev", "").upper().replace("WSH", "WAS")
+        abbr = pro_abbr.get(x.get("id"))
         if abbr == "FA" or not abbr:
             continue
         byes[abbr] = x.get("byeWeek")
         for w, games in (x.get("proGamesByScoringPeriod") or {}).items():
             if games:
                 kick.setdefault(w, {})[abbr] = games[0]["date"]
+                gm = games[0]
+                home = gm.get("homeProTeamId") == x.get("id")
+                other = pro_abbr.get(gm.get("awayProTeamId") if home else gm.get("homeProTeamId"))
+                if other:
+                    opp.setdefault(abbr, {})[w] = ("" if home else "@") + other
     problems = []
     if len(byes) != 32:
         problems.append("expected 32 NFL teams in the schedule, got %d" % len(byes))
@@ -120,6 +126,23 @@ def main():
                 fields.append(k)
             out += [fidx[k], round(float(v), 2)]
         return out
+
+    # Fantasy points each defense has allowed per game to each position this season (from Sleeper's D/ST stat lines).
+    # DST uses points the team's offense allowed to opposing defenses; used for playoff strength of schedule.
+    allow_tot, allow_n = {}, {}
+    for w in past:
+        for pid, s in stats[w].items():
+            p = players.get(pid)
+            if not p or p.get("position") != "DEF" or not s.get("fan_pts_allow"):
+                continue
+            team = p.get("team") or pid
+            t = allow_tot.setdefault(team, {})
+            for pos, k in (("QB", "fan_pts_allow_qb"), ("RB", "fan_pts_allow_rb"), ("WR", "fan_pts_allow_wr"), ("TE", "fan_pts_allow_te"), ("K", "fan_pts_allow_k"), ("DST", "fan_pts_allow_def")):
+                t[pos] = t.get(pos, 0.0) + float(s.get(k) or 0)
+            allow_n[team] = allow_n.get(team, 0) + 1
+    allow = {team: {pos: round(v / allow_n[team], 2) for pos, v in t.items()} for team, t in allow_tot.items()}
+    if past and len(allow) < 30:
+        problems.append("points-allowed data for only %d defenses" % len(allow))
 
     rows, seen = [], set()
     for pid in ids:
@@ -173,7 +196,7 @@ def main():
     now = datetime.now(timezone(timedelta(hours=-4)))
     shared = {
         "version": now.isoformat(timespec="minutes"), "asOf": now.strftime("%b %-d, %Y %-I:%M %p ET"),
-        "season": SEASON, "week": week, "weeks": weeks, "past": past, "byes": byes, "kickoffs": kick,
+        "season": SEASON, "week": week, "weeks": weeks, "past": past, "byes": byes, "kickoffs": kick, "opp": opp, "allow": allow,
         "fields": fields, "players": [x["r"] for x in rows], "proj": [x["p"] for x in rows],
         "pastProj": [x["pp"] for x in rows], "stats": [x["s"] for x in rows], "trending": trending,
     }

@@ -224,6 +224,18 @@ select, input[type="text"], input[type="number"] {
 .slot .editor { grid-column: 1 / -1; display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 2px; cursor: auto; }
 .slot .editor .pfoot .btn { min-height: 40px; }
 .stack { display: grid; gap: 12px; }
+.matchup { gap: 12px; }
+.matchup h2 { font-size: 22px; }
+.vs { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: end; }
+.vs .side .lbl { display: block; font: 600 11px var(--f-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); overflow-wrap: anywhere; }
+.vs .side .big { font: 800 34px / 1 var(--f-display); font-variant-numeric: tabular-nums; }
+.vs .side.right { text-align: right; }
+.vs .mid { font: 600 13px var(--f-body); color: var(--muted); padding-bottom: 6px; }
+.winbar { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.winbar span { display: block; height: 100%; background: var(--accent); }
+.matchup .note { font-size: 14px; }
+.playoffs td:nth-child(1) { font-family: var(--f-body); }
+.playoffs td:nth-child(2) { font-size: 12.5px; }
 .tips.stacked .tip { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .bid { font-size: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
 .weekly { gap: 10px; }
@@ -427,6 +439,8 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 
       <div class="card weekly" id="weekly" hidden></div>
 
+      <div class="card matchup" id="matchup" hidden></div>
+
       <div class="score" id="score"></div>
 
       <div>
@@ -462,6 +476,14 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
         <div class="sec-head"><h2>Bye weeks</h2><span class="sec-note">QB, RB, WR, TE</span></div>
         <ol class="byes" id="byes"></ol>
         <p class="legend" id="bye-legend"></p>
+      </div>
+
+      <div id="playoff-wrap" hidden>
+        <div class="sec-head"><h2>Playoff schedule</h2><span class="sec-note" id="playoff-note"></span></div>
+        <div class="score">
+          <table class="tally playoffs"><thead><tr><th>Player</th><th>Opponents</th><th>Schedule</th></tr></thead><tbody id="playoff-rows"></tbody></table>
+          <p class="compare" id="playoff-explain"></p>
+        </div>
       </div>
 
       <div class="row">
@@ -534,6 +556,14 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
           </div>
           <div class="card" id="tf-input"></div>
           <div id="tf-result"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="sec-head"><h2>Trade with a team</h2><span class="sec-note" id="tw-note"></span></div>
+        <div class="stack">
+          <div class="card"><label class="f" for="tw-team">Pick a team<select id="tw-team"></select></label></div>
+          <div id="tw-result"></div>
         </div>
       </div>
 
@@ -639,11 +669,19 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 
 /* LOGIC START */
 const POS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'];
-const POS_LABEL = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', K: 'K', DST: 'D/ST', FLEX: 'FLEX' };
+const POS_LABEL = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', K: 'K', DST: 'D/ST', FLEX: 'FLEX', RBWR: 'R/W', WRTE: 'W/T', SFLEX: 'SFLX' };
+const SLOT_NAME = { RBWR: 'RB/WR flex', WRTE: 'WR/TE flex', FLEX: 'FLEX (RB/WR/TE)', SFLEX: 'Superflex (QB/RB/WR/TE)' };
 const STATUS = [['healthy', 'Healthy'], ['questionable', 'Questionable'], ['doubtful', 'Doubtful'], ['out', 'Out'], ['ir', 'IR']];
 const STATUS_LABEL = Object.fromEntries(STATUS);
 const FLEX_POS = ['RB', 'WR', 'TE'];
-const SLOT_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DST'];
+// Flex-type slots and who can fill them, in the order the optimizer fills them (most restrictive first).
+const FLEX_SLOTS = { RBWR: ['RB', 'WR'], WRTE: ['WR', 'TE'], FLEX: ['RB', 'WR', 'TE'], SFLEX: ['QB', 'RB', 'WR', 'TE'] };
+const SLOT_ORDER = ['QB', 'RB', 'WR', 'TE', 'RBWR', 'WRTE', 'FLEX', 'SFLEX', 'K', 'DST'];
+// Positions that can swap with each other in this league's lineup (through any flex-type slot it uses).
+function canSwap(a, b, s) {
+  if (a === b) return true;
+  return Object.entries(FLEX_SLOTS).some(([k, ps]) => num((s.slots || {})[k]) > 0 && ps.includes(a) && ps.includes(b));
+}
 const BYE_WEEKS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 
 // League facts read from ESPN by the refresh (FF Baybay values as fallbacks).
@@ -660,7 +698,7 @@ const DEFAULTS = () => ({
   closeMargin: 1.5,
   endWeek: 14,
   rosterSize: LG().rosterSize || 15,
-  slots: Object.assign({ QB: 1, RB: 2, WR: 3, TE: 1, FLEX: 1, K: 1, DST: 1 }, LG().slots || {}),
+  slots: Object.assign({ QB: 1, RB: 2, WR: 3, TE: 1, RBWR: 0, WRTE: 0, FLEX: 1, SFLEX: 0, K: 1, DST: 1 }, LG().slots || {}),
   prob: { healthy: 100, questionable: 75, doubtful: 25, out: 0, ir: 0 }
 });
 
@@ -801,7 +839,7 @@ function evalPlayer(p, s, week = s.week, future = false) {
   return { ...p, bonus, adj, onBye, chance, exp: adj * chance };
 }
 
-const eligible = (slot, p) => (slot === 'FLEX' ? FLEX_POS.includes(p.pos) : p.pos === slot);
+const eligible = (slot, p) => (FLEX_SLOTS[slot] ? FLEX_SLOTS[slot].includes(p.pos) : p.pos === slot);
 
 function optimize(players, s, week = s.week, future = false) {
   const pool = players.map(p => evalPlayer(p, s, week, future));
@@ -817,12 +855,14 @@ function optimize(players, s, week = s.week, future = false) {
       filled[pos].push(pick);
     }
   }
-  const flexList = pool.filter(p => FLEX_POS.includes(p.pos) && !used.has(p.id)).sort(sortDesc);
-  filled.FLEX = [];
-  for (let i = 0; i < s.slots.FLEX; i++) {
-    const pick = flexList[i] || null;
-    if (pick) used.add(pick.id);
-    filled.FLEX.push(pick);
+  for (const [slot, ok] of Object.entries(FLEX_SLOTS)) {
+    const list = pool.filter(p => ok.includes(p.pos) && !used.has(p.id)).sort(sortDesc);
+    filled[slot] = [];
+    for (let i = 0; i < num(s.slots[slot]); i++) {
+      const pick = list[i] || null;
+      if (pick) used.add(pick.id);
+      filled[slot].push(pick);
+    }
   }
   const lineup = [];
   for (const slot of SLOT_ORDER) filled[slot].forEach(player => lineup.push({ slot, player }));
@@ -834,7 +874,7 @@ function optimize(players, s, week = s.week, future = false) {
 
 function compare(res, s) {
   const started = res.pool.filter(p => p.started);
-  const need = SLOT_ORDER.reduce((t, k) => t + s.slots[k], 0);
+  const need = SLOT_ORDER.reduce((t, k) => t + num(s.slots[k]), 0);
   if (started.length !== need) return { ready: false, count: started.length, need };
   const cur = started.reduce((t, p) => t + p.exp, 0);
   const optIds = new Set(res.lineup.filter(x => x.player).map(x => x.player.id));
@@ -1128,7 +1168,7 @@ function reportCard(db, tid, week, s) {
   const left = [...appSit];
   appStart.forEach(a => {
     let k = left.findIndex(b => b.pos === a.pos);
-    if (k < 0) k = left.findIndex(b => FLEX_POS.includes(a.pos) && FLEX_POS.includes(b.pos));
+    if (k < 0) k = left.findIndex(b => canSwap(a.pos, b.pos, s));
     if (k < 0) k = 0;
     const b = left.splice(k, 1)[0];
     if (b) pairs.push({ start: a, sit: b, delta: num(a.actual) - num(b.actual) });
@@ -1139,7 +1179,7 @@ function reportCard(db, tid, week, s) {
   const shouldStart = ps.filter(p => bestIds.has(p.id) && !startedIds.has(p.id));
   const shouldSit = started.filter(p => !bestIds.has(p.id));
   shouldStart.forEach(a => {
-    const cands = shouldSit.filter(b => b.pos === a.pos || (FLEX_POS.includes(a.pos) && FLEX_POS.includes(b.pos)));
+    const cands = shouldSit.filter(b => canSwap(a.pos, b.pos, s));
     cands.forEach(b => {
       const d = num(a.actual) - num(b.actual);
       if (!miss || d > miss.delta) miss = { start: a, sit: b, delta: d, week };
@@ -1201,7 +1241,7 @@ function teamFloors(db, s) {
     const starters = optimize(t.players, s).lineup.filter(x => x.player).map(x => x.player);
     const f = {};
     POS.forEach(pos => {
-      const elig = starters.filter(p => p.pos === pos || (FLEX_POS.includes(pos) && FLEX_POS.includes(p.pos)));
+      const elig = starters.filter(p => canSwap(pos, p.pos, s));
       f[pos] = elig.length ? Math.min(...elig.map(p => rosValue(p, s))) : 0;
     });
     return f;
@@ -1211,7 +1251,7 @@ function teamFloors(db, s) {
 }
 function faabBid(db, s, r, tid) {
   const fb = db.league && db.league.faab;
-  if (!fb) return null;
+  if (!fb || !(fb.bids || []).length) return null;   // no bid history yet (still loading, or none this season)
   const c = r.cand;
   const remaining = Math.max(0, num(fb.budget) - num((fb.spent || {})[tid]));
   const floors = teamFloors(db, s);
@@ -1268,7 +1308,9 @@ const REPLACEMENT_RANK = { QB: 13, RB: 31, WR: 43, TE: 13, K: 13, DST: 13 };
 // 12 teams, 1 QB / 2 RB / 3 WR / 1 TE / 1 FLEX gives QB13, RB31, WR43, TE13.
 function replacementRank(pos, s) {
   const n = LEAGUE_SIZE(), sl = s.slots || {};
-  const flexShare = ['RB', 'WR'].includes(pos) ? 0.5 * num(sl.FLEX) : 0;
+  // Flex-type slots split among the positions that usually fill them (superflex goes mostly to QBs).
+  const share = { FLEX: { RB: 0.5, WR: 0.5 }, RBWR: { RB: 0.5, WR: 0.5 }, WRTE: { WR: 0.7, TE: 0.3 }, SFLEX: { QB: 0.85, RB: 0.05, WR: 0.1 } };
+  const flexShare = Object.entries(share).reduce((t, [k, m]) => t + num(sl[k]) * (m[pos] || 0), 0);
   const starters = num(sl[pos]) + flexShare;
   return starters ? Math.round(n * starters) + 1 : REPLACEMENT_RANK[pos] || 13;
 }
@@ -1441,7 +1483,7 @@ function suggestTrades(mine, db, s, opts = {}) {
   const myStarters = optimize(mine, s).lineup.filter(x => x.player).map(x => x.player);
   // Weakest starter you have at each position (FLEX counts for RB, WR, TE): a target has to beat it to be worth chasing.
   const floor = pos => {
-    const elig = myStarters.filter(p => p.pos === pos || (FLEX_POS.includes(pos) && FLEX_POS.includes(p.pos)));
+    const elig = myStarters.filter(p => canSwap(pos, p.pos, s));
     return elig.length ? Math.min(...elig.map(val)) : 0;
   };
   const gives = mine.filter(p => skill(p) && p.status !== 'ir');
@@ -1480,6 +1522,160 @@ function suggestTrades(mine, db, s, opts = {}) {
     if (out.length >= maxResults) break;
   }
   return out;
+}
+// ---------- this week's matchup ----------
+const normCdf = z => 0.5 * (1 + erfApprox(z / Math.SQRT2));
+function erfApprox(x) { // Abramowitz-Stegun 7.1.26
+  const sg = x < 0 ? -1 : 1; x = Math.abs(x);
+  const t = 1 / (1 + 0.3275911 * x);
+  return sg * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x));
+}
+// Projects one team's score this week. Finished games count their actual points; games in progress count what is
+// scored so far or the projection, whichever is higher; games still to come count the projection, with a spread of
+// about 45% of a player's projection (typical week-to-week swing) and the chance he sits.
+function teamWeek(db, tid, s, useBest) {
+  const wk = db.week, now = db.dataTime || Date.now();
+  const kick = db.kickoffs || {};
+  const acts = weekActuals(db, tid, wk);
+  const players = espnRoster(db, tid, s).map(p => ({ ...p, actual: (p.dbKey && acts['db:' + p.dbKey] != null) ? acts['db:' + p.dbKey] : acts[p.name + '|' + p.pos] }));
+  const best = optimize(players, s);
+  const need = SLOT_ORDER.reduce((t, k) => t + num(s.slots[k]), 0);
+  const started = players.filter(p => p.started);
+  const lineupIds = useBest || started.length !== need ? new Set(best.lineup.filter(x => x.player).map(x => x.player.id)) : new Set(started.map(p => p.id));
+  let total = 0, variance = 0, scored = 0;
+  const rows = players.filter(p => lineupIds.has(p.id)).map(p => {
+    const ev = evalPlayer(p, s);
+    const k = kick[p.team];
+    const state = !k || k > now ? 'upcoming' : now - k > 3.6 * 3600 * 1000 ? 'final' : 'live';
+    let val, v;
+    if (state === 'final') { val = num(p.actual); v = 0; }
+    else if (state === 'live') { val = Math.max(num(p.actual), ev.exp); v = Math.pow(0.25 * ev.adj, 2); }
+    else { val = ev.exp; v = ev.chance * Math.pow(0.45 * ev.adj, 2) + ev.adj * ev.adj * ev.chance * (1 - ev.chance); }
+    if (state !== 'upcoming') scored += num(p.actual);
+    total += val; variance += v;
+    return { p: ev, state, val };
+  });
+  return { tid, total, variance, scored, rows, players, best };
+}
+function matchupFor(db, tid, s) {
+  const pair = ((db.league.matchups || {})[db.week] || []).find(m => m.map(Number).includes(Number(tid)));
+  if (!pair) return null;
+  const opp = Number(pair.map(Number).find(x => x !== Number(tid)));
+  const bb = !!db.league.bestBall;
+  const me = teamWeek(db, tid, s, bb), them = teamWeek(db, opp, s, bb);
+  const sd = Math.sqrt(me.variance + them.variance) || 1;
+  const win = normCdf((me.total - them.total) / sd);
+  // If the app's best lineup differs from the one set on the league site, what it does to the odds.
+  let bestWin = null, bestTotal = null;
+  if (!bb) {
+    const alt = teamWeek(db, tid, s, true);
+    if (alt.total > me.total + 0.05) { bestTotal = alt.total; bestWin = normCdf((alt.total - them.total) / (Math.sqrt(alt.variance + them.variance) || 1)); }
+  }
+  // Close calls: a bench player within the "close call" margin of a starter he could replace, both still to play.
+  const close = [];
+  if (!bb) {
+    const now = db.dataTime || Date.now(), kick = db.kickoffs || {};
+    const open = p => !(kick[p.team] && kick[p.team] <= now);
+    const startIds = new Set(me.rows.map(r => r.p.id));
+    const bench = me.players.filter(p => !startIds.has(p.id) && open(p)).map(p => evalPlayer(p, s)).filter(p => p.exp > 0);
+    me.rows.filter(r => r.state === 'upcoming').forEach(r => {
+      bench.forEach(b => {
+        if (canSwap(b.pos, r.p.pos, s) && Math.abs(b.exp - r.p.exp) <= Math.max(1.5, num(s.closeMargin))) close.push({ start: r.p, bench: b, diff: r.p.exp - b.exp });
+      });
+    });
+    close.sort((a, b) => Math.abs(a.diff) - Math.abs(b.diff));
+  }
+  return { me, them, opp, win, bestWin, bestTotal, close: close.slice(0, 4) };
+}
+
+// ---------- playoff schedule strength ----------
+// Each defense's average fantasy points allowed per game to a position, against the league average.
+// Above 1 means opponents have been generous (easier matchup).
+let sosCache = null;
+function playoffWeeksOf(db) { return ((db.league || {}).playoffWeeks || [15, 16, 17]); }
+function oppRating(db, oppStr, pos) {
+  const allow = (db.nfl || {}).allow || {};
+  const team = String(oppStr || '').replace('@', '');
+  const vals = Object.values(allow).map(a => num(a[pos])).filter(v => v > 0);
+  const avg = vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length);
+  return allow[team] && avg ? num(allow[team][pos]) / avg : null;
+}
+function scheduleRating(db, team, pos, weeks) {
+  const opp = ((db.nfl || {}).opp || {})[team] || {};
+  const games = weeks.map(w => ({ w, opp: opp[w] || null, r: opp[w] ? oppRating(db, opp[w], pos) : null }));
+  const rs = games.filter(x => x.r != null).map(x => x.r);
+  return { games, rating: rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null };
+}
+function playoffOutlook(db, p) {
+  if (!p || !p.team || !db.nfl) return null;
+  const weeks = playoffWeeksOf(db);
+  const key = (db.version || '') + '|' + weeks.join(',');
+  if (!sosCache || sosCache.key !== key) sosCache = { key, rank: {} };
+  if (!sosCache.rank[p.pos]) {
+    const teams = Object.keys((db.nfl.opp) || {});
+    const list = teams.map(t => ({ t, r: scheduleRating(db, t, p.pos, weeks).rating })).filter(x => x.r != null).sort((a, b) => b.r - a.r);
+    sosCache.rank[p.pos] = { order: list.map(x => x.t), n: list.length };
+  }
+  const own = scheduleRating(db, p.team, p.pos, weeks);
+  if (own.rating == null) return null;
+  const rk = sosCache.rank[p.pos];
+  const rank = rk.order.indexOf(p.team) + 1;
+  // Easy = top quarter of NFL schedules for this position, tough = bottom quarter.
+  const label = rank && rank <= Math.ceil(rk.n * 0.25) ? 'easy' : rank > Math.floor(rk.n * 0.75) ? 'tough' : 'average';
+  return { weeks, games: own.games, rating: own.rating, rank, of: rk.n, label };
+}
+// ---------- trade with one team ----------
+// Every 1-for-1, 2-for-1, 1-for-2 and 2-for-2 between your roster and one other team (each side's most valuable
+// tradeable players), judged on both lineups' rest-of-season points and on trade value.
+function tradesWithTeam(mine, db, s, teamId, opts = {}) {
+  const { perSide = 9, show = 5 } = opts;
+  const team = leagueTeams(db, s).find(t => t.id === Number(teamId));
+  if (!team) return null;
+  const tv = tradeValueModel(db, s);
+  const evalSwap = swapEvaluator(mine, s);
+  const pool = list => list.filter(p => p.pos !== 'K' && p.pos !== 'DST' && p.status !== 'ir')
+    .map(p => ({ p, v: tv.value(p) })).filter(x => x.v >= 2).sort((a, b) => b.v - a.v).slice(0, perSide).map(x => x.p);
+  const mineP = pool(mine), theirP = pool(team.players);
+  const packs = list => {
+    const out = list.map(p => [p]);
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) out.push([list[i], list[j]]);
+    return out;
+  };
+  const sum = ps => ps.reduce((t, p) => t + tv.value(p), 0);
+  const all = [];
+  packs(mineP).forEach(give => {
+    const gv = sum(give);
+    packs(theirP).forEach(get => {
+      const gtv = sum(get);
+      if (!gv || !gtv || gv / gtv < 0.6 || gv / gtv > 1.65) return;
+      const r = evalSwap(team, give, get);
+      const o = { team, give, get, giveValue: gv, getValue: gtv, fair: fairness(gv, gtv), ...r };
+      o.tier = offerTier(o);
+      o.balance = Math.abs(1 - gv / gtv);
+      all.push(o);
+    });
+  });
+  const key = o => o.give.map(p => p.id).sort().join(',') + '>' + o.get.map(p => p.id).sort().join(',');
+  const pick = (list, n) => {
+    const seen = new Set(), usedGet = {}, out = [];
+    for (const o of list) {
+      const k = key(o), g = o.get.map(p => p.id).sort().join(',');
+      if (seen.has(k) || (usedGet[g] || 0) >= 2) continue;
+      seen.add(k); usedGet[g] = (usedGet[g] || 0) + 1;
+      out.push(o);
+      if (out.length >= n) break;
+    }
+    return out;
+  };
+  // Best for you: most lineup gain for you, as long as their lineup doesn't lose more than a few points
+  // and the trade values are within reason (they won't feel robbed).
+  const best = pick(all.filter(o => o.myGain >= 0.5 && o.theirGain >= -3 && o.balance <= 0.35).sort((a, b) => b.myGain - a.myGain), show);
+  // Most fair: closest trade values where both lineups improve (or barely move).
+  let fairList = all.filter(o => o.myGain >= 0.5 && o.theirGain >= 0.5);
+  if (fairList.length < 3) fairList = all.filter(o => o.myGain >= 0 && o.theirGain >= -1.5);
+  const fair = pick(fairList.sort((a, b) => a.balance - b.balance || (b.myGain + b.theirGain) - (a.myGain + a.theirGain)), show);
+  const needs = upgradeSpots(team.players, db, s).filter(x => x.ratio > 1 && x.player && x.pos !== 'K' && x.pos !== 'DST');
+  return { team, best, fair, needs, searched: all.length };
 }
 /* LOGIC END */
 
@@ -1617,7 +1813,7 @@ const planLabel = s => `Weeks ${s.week} to ${lastWeek(s)}`;
 // Whether a player's game had started when the data was refreshed: 'final', 'live', or null.
 function gameState(p) {
   const k = (DB.kickoffs || {})[p.team];
-  const at = Date.parse(DB.version || '') || 0;
+  const at = DB.dataTime || Date.parse(DB.version || '') || 0;
   if (!k || !at || k > at) return null;
   return at - k > 3.6 * 3600 * 1000 ? 'final' : 'live';
 }
@@ -1629,7 +1825,7 @@ function slotRow(slot, p, bench, mark) {
     return `<li class="slot">${label}<div><div class="name">Empty</div><div class="meta">${pill('bad', 'Empty')}</div></div><div class="pts">0.0</div></li>`;
   }
   const bits = [];
-  if (bench || slot === 'FLEX') bits.push(POS_LABEL[p.pos]);
+  if (bench || FLEX_SLOTS[slot]) bits.push(POS_LABEL[p.pos]);
   if (p.team) bits.push(esc(p.team));
   bits.push(`${fmt(num(p.proj))} proj`);
   if (p.bonus > 0) bits.push(`+${fmt(p.bonus)} carry bonus`);
@@ -1673,13 +1869,22 @@ function seasonPanel(p) {
     : `<li title="Week ${weeks[i]}: ${fmt(v)} pts"><span class="v">${Math.round(v)}</span><span class="bar" style="height:${Math.max(3, Math.round(Math.max(0, v) / max * 52))}px"></span><span>W${weeks[i]}</span></li>`).join('');
   const per = Object.entries(sp.st).map(([k, v]) => TOTAL_STATS.has(k) ? `${fmt0(v)} ${STAT_LABEL[k]}` : `${fmt(v / sp.gp)} ${STAT_LABEL[k]}`);
   const rosTxt = hasRos(p) ? ` · rest of season ${fmt(num(p.ros))}/wk projected` : '';
-  return `<div class="season">
+  const po = playoffOutlook(DB, p);
+  const poTxt = po ? `<p class="hint"><strong>Playoffs (Weeks ${po.weeks[0]}–${po.weeks[po.weeks.length - 1]}):</strong> ${po.games.map(g => g.opp ? (g.opp.startsWith('@') ? g.opp : 'vs ' + g.opp) : 'bye').join(', ')}. ${po.label === 'average' ? 'An average' : po.label === 'easy' ? 'An easy' : 'A tough'} schedule for ${POS_LABEL[p.pos]}s (${ordinal(po.rank)} easiest of ${po.of}).</p>` : '';
+  return `<div class="season">${poTxt}
       <div class="head"><strong>Season:</strong> ${fmt(avg)} pts a game over ${sp.gp} game${sp.gp === 1 ? '' : 's'} · last 3: ${fmt(l3)}${rosTxt}</div>
       <ul class="wkbars" aria-label="Points by week">${bars}</ul>
       <p class="hint">Per game: ${per.filter((_, i) => !TOTAL_STATS.has(Object.keys(sp.st)[i])).join(', ')}${per.some((_, i) => TOTAL_STATS.has(Object.keys(sp.st)[i])) ? ' · Season: ' + per.filter((_, i) => TOTAL_STATS.has(Object.keys(sp.st)[i])).join(', ') : ''}. Points use your league's scoring.</p>
     </div>`;
 }
 const fmt0 = v => String(Math.round(v));
+const ordinal = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : n % 10] || 'th');
+// Small tag for a player's playoff schedule when it is clearly easy or tough.
+function playoffPill(p) {
+  const po = LEAGUE ? playoffOutlook(DB, p) : null;
+  if (!po || po.label === 'average') return '';
+  return pill(po.label === 'easy' ? 'ok' : 'bad', `Playoffs: ${po.label}`);
+}
 
 // Inline editor shown under a player's row. Edits save as you type; the lineup re-sorts when you tap Done.
 function editorHtml(p) {
@@ -1752,6 +1957,8 @@ function renderLineup() {
   $('#bench-note').textContent = `${res.bench.length} players · ${state.players.length} on roster`;
   renderReportCard();
   renderWeekly(res, cmp, risk);
+  renderMatchup();
+  renderPlayoffTable(res);
   $('#bench').innerHTML = res.bench.length ? res.bench.map(p => slotRow(p.pos, p, true, markOn && p.started ? 'sit' : '')).join('') : '<li class="msg">No bench players.</li>';
 
   const groups = byeGroups(state.players);
@@ -1888,6 +2095,48 @@ function renderLeague() {
     (b.blunder ? `\nBiggest bench blunder: ${LEAGUE.teams[b.blunder.team]}, Week ${b.blunder.week}, benched ${b.blunder.start.name} (${fmt(num(b.blunder.start.actual))}) for ${b.blunder.sit.name} (${fmt(num(b.blunder.sit.actual))}).` : '');
 }
 
+/* ---------- matchup ---------- */
+function renderMatchup() {
+  const el = $('#matchup');
+  const m = LEAGUE && teamId && state.settings.week === DB.week ? matchupFor(DB, teamId, state.settings) : null;
+  if (!m) { el.hidden = true; return; }
+  el.hidden = false;
+  const allDone = m.me.rows.concat(m.them.rows).every(r => r.state === 'final');
+  const pct = x => (allDone ? Math.round(100 * x) : Math.min(99, Math.max(1, Math.round(100 * x)))) + '%';
+  const oppName = LEAGUE.teams[m.opp] || 'Opponent';
+  const scoredMe = m.me.rows.some(r => r.state !== 'upcoming'), scoredThem = m.them.rows.some(r => r.state !== 'upcoming');
+  const side = (label, t, right, scored) => `<div class="side${right ? ' right' : ''}"><span class="lbl">${esc(label)}</span><span class="big">${fmt(t.total)}</span>${scored ? `<span class="meta" style="display:block">${fmt(t.scored)} scored so far</span>` : ''}</div>`;
+  const fav = m.win >= 0.5 ? `You are favored, ${pct(m.win)} to win.` : `You are the underdog, ${pct(m.win)} to win.`;
+  const notes = [];
+  if (m.bestWin != null) notes.push(`Setting the app's lineup (${fmt(m.bestTotal)} projected) moves you to <strong>${pct(m.bestWin)}</strong>.`);
+  if (m.close.length) {
+    notes.push('Close calls for this game: ' + m.close.map(c => `${esc(c.start.name)} (${fmt(c.start.exp)}) or ${esc(c.bench.name)} (${fmt(c.bench.exp)})`).join('; ') + '.');
+    notes.push(m.win < 0.4 ? 'As the underdog, lean toward the player with the bigger ceiling when it is that close.' : m.win > 0.65 ? 'As the favorite, lean toward the steadier player when it is that close.' : '');
+  }
+  if (LEAGUE.bestBall) notes.push(`Best ball: both lineups are set automatically, so these are each team's best projected lineups.`);
+  el.innerHTML = `<h2>Week ${DB.week} matchup</h2>
+    <div class="vs">${side(teamName() || 'You', m.me, false, scoredMe)}<div class="mid">vs</div>${side(oppName, m.them, true, scoredThem)}</div>
+    <div class="winbar" role="img" aria-label="Win chance ${pct(m.win)}"><span style="width:${pct(m.win)}"></span></div>
+    <p class="note"><strong>${fav}</strong> Projected totals use finished games' actual points and projections for the rest.</p>
+    ${notes.filter(Boolean).map(n => `<p class="note">${n}</p>`).join('')}`;
+}
+
+function renderPlayoffTable(res) {
+  const wrap = $('#playoff-wrap');
+  if (!LEAGUE || !DB.nfl) { wrap.hidden = true; return; }
+  const weeks = playoffWeeksOf(DB);
+  const ps = state.players.filter(p => p.status !== 'ir' && p.team).map(p => ({ p, po: playoffOutlook(DB, p) })).filter(x => x.po);
+  if (!ps.length || DB.week > weeks[weeks.length - 1]) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  $('#playoff-note').textContent = `Weeks ${weeks[0]} to ${weeks[weeks.length - 1]}`;
+  ps.sort((a, b) => POS.indexOf(a.p.pos) - POS.indexOf(b.p.pos) || b.po.rating - a.po.rating);
+  $('#playoff-rows').innerHTML = ps.map(({ p, po }) => {
+    const tag = po.label === 'easy' ? pill('ok', 'Easy') : po.label === 'tough' ? pill('bad', 'Tough') : pill('info', 'Average');
+    return `<tr><td>${esc(p.name)} <span class="meta" style="display:inline">${POS_LABEL[p.pos]}</span></td><td>${po.games.map(g => g.opp || 'bye').join(', ')}</td><td>${tag}</td></tr>`;
+  }).join('');
+  $('#playoff-explain').textContent = 'Based on how many fantasy points each opponent has allowed to that position per game this season. Easy means a top-quarter schedule for the position, tough a bottom-quarter one. Ratings shift as the season goes on.';
+}
+
 /* ---------- this week summary ---------- */
 const WEEKLY = { sig: '', rec: null, sug: null, busy: false };
 function renderWeekly(res, cmp, risk) {
@@ -1949,6 +2198,8 @@ function pickCard(r, i, hot, s, extra = '') {
   else if (r.cover > 0.5) flags.push(pill('info', 'Backup'));
   else flags.push(pill('info', 'No change'));
   if (c.trend) flags.push(pill('warn', 'Trending add'));
+  const pp = playoffPill(c);
+  if (pp) flags.push(pp);
   const owner = ownerName(c.dbKey);
   if (owner) flags.push(pill('info', 'On ' + owner));
   if (num(c.bye) === s.week) flags.push(pill('info', 'Bye now'));
@@ -2121,7 +2372,8 @@ function offerCard(r, i, attr) {
   const lbl = p => `${esc(p.name)} <span class="meta" style="display:inline">${POS_LABEL[p.pos]}${p.team ? ' · ' + esc(p.team) : ''}</span>`;
   const spot = r.give.length > gets.length ? '<p class="hint">You send more players than you get, which opens a roster spot for a free agent. That pickup is not counted here.</p>'
     : r.give.length < gets.length ? '<p class="hint">You get more players than you send, so your lowest-value player is dropped to make room (counted here).</p>' : '';
-  const sp = gets.filter(p => p.status !== 'healthy').map(p => pill(p.status === 'questionable' ? 'warn' : 'bad', `${p.name.split(' ').slice(-1)[0]} ${STATUS_LABEL[p.status]}`)).join('');
+  const sp = gets.filter(p => p.status !== 'healthy').map(p => pill(p.status === 'questionable' ? 'warn' : 'bad', `${p.name.split(' ').slice(-1)[0]} ${STATUS_LABEL[p.status]}`)).join('')
+    + gets.map(p => { const x = playoffPill(p); return x ? x.replace('Playoffs:', p.name.split(' ').slice(-1)[0] + ' playoffs:') : ''; }).join('');
   const tags = [];
   if (r.tier === 3) tags.push(pill('ok', 'Win-win'));
   else if (r.tier === 2) tags.push(pill('info', 'Fair value'));
@@ -2245,7 +2497,43 @@ function renderSuggestions() {
   $('#sug-more').hidden = list.length <= SUG.limit;
 }
 
-function renderTrade() { renderTradeFinder(); renderSuggestions(); renderGiveList(); renderGetList(); renderTradeResult(); }
+/* trade with one team */
+const TW = { team: null, res: null, busy: false, sig: '' };
+function renderTradeWith() {
+  if (!LEAGUE) return;
+  const sel = $('#tw-team');
+  const ids = Object.keys(LEAGUE.teams).map(Number).filter(id => id !== teamId).sort((a, b) => a - b);
+  sel.innerHTML = '<option value="">Choose a manager</option>' + ids.map(id => `<option value="${id}"${id === TW.team ? ' selected' : ''}>${esc(LEAGUE.teams[id])}</option>`).join('');
+  $('#tw-note').textContent = planLabel(state.settings);
+  const el = $('#tw-result');
+  if (!TW.team) { el.innerHTML = ''; return; }
+  const sig = sugSignature() + '|' + TW.team;
+  if (TW.busy) { el.innerHTML = '<p class="hint">Working out every swap between your two rosters…</p>'; return; }
+  if (!TW.res || TW.sig !== sig) {
+    TW.busy = true;
+    el.innerHTML = '<p class="hint">Working out every swap between your two rosters…</p>';
+    setTimeout(() => {
+      TW.res = tradesWithTeam(state.players, DB, state.settings, TW.team);
+      TW.sig = sig; TW.busy = false;
+      renderTradeWith();
+    }, 30);
+    return;
+  }
+  const r = TW.res;
+  const needs = r.needs.length
+    ? `${esc(r.team.name)} could use help at ${r.needs.map(x => `${POS_LABEL[x.pos]} (their starter ranks ${POS_LABEL[x.pos]}${x.rank})`).join(' and ')}.`
+    : `${esc(r.team.name)} has no clear weak spot in their starting lineup.`;
+  const list = (title, items, attr, empty) => `<div class="sec-head" style="margin-top:6px"><h2 style="font-size:20px">${title}</h2></div>` +
+    (items.length ? `<div class="pickups">${items.map((o, i) => offerCard(o, i, attr)).join('')}</div>` : `<p class="hint">${empty}</p>`);
+  el.innerHTML = `<div class="stack">
+      <p>${needs}</p>
+      ${list('Best for you', r.best, 'data-tw-best', 'No trade with this team helps your lineup without costing theirs.')}
+      ${list('Most fair', r.fair, 'data-tw-fair', 'No trade with this team helps both lineups right now.')}
+      <p class="hint">Checked ${r.searched} swaps of up to two players each way. "Best for you" keeps their lineup within 3 points and the trade values within about a third of each other. "Most fair" puts the closest trade values first, with both lineups improving. ${esc(tfExplain)}</p>
+    </div>`;
+}
+
+function renderTrade() { renderTradeFinder(); renderTradeWith(); renderSuggestions(); renderGiveList(); renderGetList(); renderTradeResult(); }
 
 /* ---------- settings view ---------- */
 function renderSettings() {
@@ -2256,7 +2544,7 @@ function renderSettings() {
   $('#set-endWeek').value = s.endWeek;
   $('#set-rosterSize').value = s.rosterSize;
   $('#slot-inputs').innerHTML = SLOT_ORDER.map(k =>
-    `<label class="f" for="set-slot-${k}">${POS_LABEL[k]}<input type="number" id="set-slot-${k}" data-set="slot:${k}" inputmode="numeric" step="1" min="0" max="6" value="${s.slots[k]}"></label>`).join('');
+    `<label class="f" for="set-slot-${k}">${SLOT_NAME[k] || POS_LABEL[k]}<input type="number" id="set-slot-${k}" data-set="slot:${k}" inputmode="numeric" step="1" min="0" max="6" value="${s.slots[k]}"></label>`).join('');
   $('#prob-inputs').innerHTML = STATUS.map(([k, l]) =>
     `<label class="f" for="set-prob-${k}">${esc(l)} %<input type="number" id="set-prob-${k}" data-set="prob:${k}" inputmode="numeric" step="5" min="0" max="100" value="${s.prob[k]}"></label>`).join('');
 }
@@ -2498,6 +2786,7 @@ function switchTeam(tid) {
   openId = null;
   SUG.list = null; SUG.sig = ''; WEEKLY.sig = ''; WEEKLY.rec = null; WEEKLY.sug = null;
   TF.res = null; TF.key = ''; TF.mineId = null; TF.mode = 'get'; $('#tf-input').innerHTML = '';
+  TW.team = null; TW.res = null;
   REC.list = []; REC.pos = ''; REC.limit = 6;
   $('#week-quick').value = String(state.settings.week);
   renderTeamControls();
@@ -2602,6 +2891,17 @@ $('#tf-input').addEventListener('click', e => {
   $('#tf-q').value = '';
   $('#tf-res').innerHTML = '';
   runTradeFinder();
+});
+$('#tw-team').addEventListener('change', e => {
+  TW.team = e.target.value ? Number(e.target.value) : null;
+  TW.res = null;
+  renderTradeWith();
+});
+$('#tw-result').addEventListener('click', e => {
+  const d = e.target.dataset || {};
+  if (!TW.res || (d.twBest == null && d.twFair == null)) return;
+  const r = d.twBest != null ? TW.res.best[Number(d.twBest)] : TW.res.fair[Number(d.twFair)];
+  if (r) openInAnalyzer(r);
 });
 $('#tf-result').addEventListener('click', e => {
   const i = e.target.dataset && e.target.dataset.tfOffer;
