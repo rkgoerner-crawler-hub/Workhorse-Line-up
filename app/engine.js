@@ -255,17 +255,20 @@
       keyOfPid[pid] = key;
       (byNP[norm(nm) + '|' + pos] = byNP[norm(nm) + '|' + pos] || []).push(key);
       let gp = 0;
-      const wk = [], tot = {};
+      // Usage per game: carries + targets (QB: pass attempts + carries); null when he did not play.
+      const wk = [], use = [], tot = {};
+      const usage = s => (pos === 'QB' ? g(s, 'pass_att') + g(s, 'rush_att') : ['RB', 'WR', 'TE'].includes(pos) ? g(s, 'rush_att') + g(s, 'rec_tgt') : null);
       shared.stats[i].forEach(l => {
         const s = decode(F, l);
-        if (!l || !(s.gp || s.gms_active || Object.keys(s).length)) { wk.push(null); return; }
+        if (!l || !(s.gp || s.gms_active || Object.keys(s).length)) { wk.push(null); use.push(null); return; }
         gp++;
+        use.push(usage(s));
         wk.push(Math.round(scorer(pos, s, true, true) * 10) / 10);
         KEEP[pos].forEach(k => { tot[k] = (tot[k] || 0) + g(s, k); });
       });
       if (gp) {
         Object.keys(tot).forEach(k => { tot[k] = Math.round(tot[k] * 10) / 10; });
-        season[key] = { pts: wk, gp, st: tot };
+        season[key] = { pts: wk, use, gp, st: tot };
       }
     });
     const pastProjOf = {};

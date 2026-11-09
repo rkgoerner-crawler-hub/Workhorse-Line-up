@@ -1695,6 +1695,32 @@ function tradesWithTeam(mine, db, s, teamId, opts = {}) {
   const needs = upgradeSpots(team.players, db, s).filter(x => x.ratio > 1 && x.player && x.pos !== 'K' && x.pos !== 'DST');
   return { team, best, fair, needs, searched: all.length };
 }
+// ---------- trends ----------
+// Last 3 games against the games before them, for points (league scoring) and usage (carries + targets;
+// QBs: pass attempts + carries). "Up" or "down" needs a clear change in points AND usage not moving the other way
+// (or a big usage change on its own), so one fluky week doesn't flip it.
+function playerTrend(db, p) {
+  const sp = db.season && db.season.players && p && p.dbKey ? db.season.players[p.dbKey] : null;
+  if (!sp || p.pos === 'K' || p.pos === 'DST') return null;   // kicker and defense swings are mostly noise
+  const games = sp.pts.map((v, i) => ({ v, u: (sp.use || [])[i], w: db.season.weeks[i] })).filter(x => x.v != null);
+  if (games.length < 5) return null;
+  const recent = games.slice(-3), before = games.slice(0, -3);
+  const avg = (xs, k) => xs.reduce((t, x) => t + num(x[k]), 0) / Math.max(1, xs.length);
+  const pr = avg(recent, 'v'), pb = avg(before, 'v');
+  const hasUse = recent.every(x => x.u != null) && before.every(x => x.u != null) && p.pos !== 'K' && p.pos !== 'DST';
+  const ur = hasUse ? avg(recent, 'u') : null, ub = hasUse ? avg(before, 'u') : null;
+  const dp = pr - pb, rel = pb > 0 ? dp / pb : 0;
+  const du = hasUse ? ur - ub : 0, urel = hasUse && ub > 0 ? du / ub : 0;
+  let dir = 'steady';
+  // Only for fantasy-relevant players: 8+ points a game recently (up) or before (down).
+  const ptsUp = dp >= 3 && rel >= 0.2 && pr >= 8, ptsDown = dp <= -3 && rel <= -0.2 && pb >= 8;
+  if (ptsUp && urel > -0.1) dir = 'up';
+  else if (ptsDown && urel < 0.1) dir = 'down';
+  else if (hasUse && urel >= 0.3 && du >= 3 && dp > 0 && pr >= 8) dir = 'up';
+  else if (hasUse && urel <= -0.3 && du <= -3 && dp < 0 && pb >= 8) dir = 'down';
+  return { dir, recent: pr, before: pb, dp, useRecent: ur, useBefore: ub, du, games: games.length };
+}
+const USAGE_WORD = { QB: 'dropbacks and runs', RB: 'touches', WR: 'targets and carries', TE: 'targets and carries' };
 /* LOGIC END */
 
 let DB = null;
@@ -1856,7 +1882,7 @@ function slotRow(slot, p, bench, mark) {
   if (p.team) bits.push(esc(p.team));
   bits.push(`${fmt(num(p.proj))} proj`);
   if (p.bonus > 0) bits.push(`+${fmt(p.bonus)} carry bonus`);
-  let sp = statusPill(p);
+  let sp = statusPill(p) + trendPill(p);
   if (mark === 'sit') sp += pill('warn', 'You started');
   if (mark === 'start') sp += pill('info', 'You benched');
   let full = p.chance < 1 && p.adj > 0 ? `<small>${fmt(p.adj)} if active</small>` : '';
@@ -1898,7 +1924,7 @@ function seasonPanel(p) {
   const rosTxt = hasRos(p) ? ` · rest of season ${fmt(num(p.ros))}/wk projected` : '';
   const po = playoffOutlook(DB, p);
   const poTxt = po ? `<p class="hint"><strong>Playoffs (Weeks ${po.weeks[0]}–${po.weeks[po.weeks.length - 1]}):</strong> ${po.games.map(g => g.opp ? (g.opp.startsWith('@') ? g.opp : 'vs ' + g.opp) : 'bye').join(', ')}. ${po.label === 'average' ? 'An average' : po.label === 'easy' ? 'An easy' : 'A tough'} schedule for ${POS_LABEL[p.pos]}s (${ordinal(po.rank)} easiest of ${po.of}).</p>` : '';
-  return `<div class="season">${poTxt}
+  return `<div class="season">${trendText(p)}${poTxt}
       <div class="head"><strong>Season:</strong> ${fmt(avg)} pts a game over ${sp.gp} game${sp.gp === 1 ? '' : 's'} · last 3: ${fmt(l3)}${rosTxt}</div>
       <ul class="wkbars" aria-label="Points by week">${bars}</ul>
       <p class="hint">Per game: ${per.filter((_, i) => !TOTAL_STATS.has(Object.keys(sp.st)[i])).join(', ')}${per.some((_, i) => TOTAL_STATS.has(Object.keys(sp.st)[i])) ? ' · Season: ' + per.filter((_, i) => TOTAL_STATS.has(Object.keys(sp.st)[i])).join(', ') : ''}. Points use your league's scoring.</p>
@@ -1906,6 +1932,20 @@ function seasonPanel(p) {
 }
 const fmt0 = v => String(Math.round(v));
 const ordinal = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : n % 10] || 'th');
+// Small tag when a player is clearly trending up or down.
+function trendPill(p) {
+  const t = LEAGUE ? playerTrend(DB, p) : null;
+  if (!t || t.dir === 'steady') return '';
+  return pill(t.dir === 'up' ? 'ok' : 'bad', t.dir === 'up' ? '▲ Trending up' : '▼ Trending down');
+}
+function trendText(p) {
+  const t = playerTrend(DB, p);
+  if (!t) return '';
+  const word = t.dir === 'up' ? 'Trending up' : t.dir === 'down' ? 'Trending down' : 'Steady';
+  const use = t.useRecent != null ? `, ${fmt(t.useRecent)} ${USAGE_WORD[p.pos] || 'touches'} a game (was ${fmt(t.useBefore)})` : '';
+  return `<p class="hint"><strong>${word}:</strong> ${fmt(t.recent)} pts a game over his last 3 (was ${fmt(t.before)} before that)${use}.</p>`;
+}
+
 // Small tag for a player's playoff schedule when it is clearly easy or tough.
 function playoffPill(p) {
   const po = LEAGUE ? playoffOutlook(DB, p) : null;
@@ -2199,7 +2239,10 @@ function renderWeekly(res, cmp, risk) {
       renderLineup();
     }, 60);
   }
-  el.innerHTML = `<h2>This week</h2>${line('Lineup', lineup, '')}${LEAGUE.noAdds ? '' : line('Best pickup', pickup, 'waivers')}${LEAGUE.noTrades ? '' : line('Trade idea', trade, 'trade')}`;
+  const tr = state.players.map(p => ({ p, t: playerTrend(DB, p) })).filter(x => x.t && x.t.dir !== 'steady');
+  const ups = tr.filter(x => x.t.dir === 'up').sort((a, b) => b.t.dp - a.t.dp), downs = tr.filter(x => x.t.dir === 'down').sort((a, b) => a.t.dp - b.t.dp);
+  const trendLine = tr.length ? line('Trends on your roster', [ups.length ? 'Up: ' + ups.map(x => `${esc(x.p.name)} (${sgn(x.t.dp)} pts/game)`).join(', ') : '', downs.length ? 'Down: ' + downs.map(x => `${esc(x.p.name)} (${sgn(x.t.dp)} pts/game)`).join(', ') : ''].filter(Boolean).join('. ') + '.', '') : '';
+  el.innerHTML = `<h2>This week</h2>${line('Lineup', lineup, '')}${trendLine}${LEAGUE.noAdds ? '' : line('Best pickup', pickup, 'waivers')}${LEAGUE.noTrades ? '' : line('Trade idea', trade, 'trade')}`;
 }
 
 /* ---------- roster view ---------- */
@@ -2230,6 +2273,8 @@ function pickCard(r, i, hot, s, extra = '') {
   if (c.trend) flags.push(pill('warn', 'Trending add'));
   const pp = playoffPill(c);
   if (pp) flags.push(pp);
+  const tp = trendPill(c);
+  if (tp) flags.push(tp);
   const owner = ownerName(c.dbKey);
   if (owner) flags.push(pill('info', 'On ' + owner));
   if (num(c.bye) === s.week) flags.push(pill('info', 'Bye now'));
@@ -2403,7 +2448,8 @@ function offerCard(r, i, attr) {
   const spot = r.give.length > gets.length ? '<p class="hint">You send more players than you get, which opens a roster spot for a free agent. That pickup is not counted here.</p>'
     : r.give.length < gets.length ? '<p class="hint">You get more players than you send, so your lowest-value player is dropped to make room (counted here).</p>' : '';
   const sp = gets.filter(p => p.status !== 'healthy').map(p => pill(p.status === 'questionable' ? 'warn' : 'bad', `${p.name.split(' ').slice(-1)[0]} ${STATUS_LABEL[p.status]}`)).join('')
-    + gets.map(p => { const x = playoffPill(p); return x ? x.replace('Playoffs:', p.name.split(' ').slice(-1)[0] + ' playoffs:') : ''; }).join('');
+    + gets.map(p => { const x = playoffPill(p); return x ? x.replace('Playoffs:', p.name.split(' ').slice(-1)[0] + ' playoffs:') : ''; }).join('')
+    + r.give.concat(gets).map(p => { const x = trendPill(p); return x ? x.replace('Trending', p.name.split(' ').slice(-1)[0]) : ''; }).join('');
   const tags = [];
   if (r.tier === 3) tags.push(pill('ok', 'Win-win'));
   else if (r.tier === 2) tags.push(pill('info', 'Fair value'));
