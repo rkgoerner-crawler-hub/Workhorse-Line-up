@@ -644,8 +644,9 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
         <div class="grid">
           <label class="f" for="set-endWeek">Last week counted<input type="number" id="set-endWeek" data-set="endWeek" inputmode="numeric" step="1" min="1" max="18"></label>
           <label class="f" for="set-rosterSize">Roster spots (no IR)<input type="number" id="set-rosterSize" data-set="rosterSize" inputmode="numeric" step="1" min="1" max="30"></label>
+          <label class="f" for="set-playoffWeight">Playoff weeks count<input type="number" id="set-playoffWeight" data-set="playoffWeight" inputmode="decimal" step="0.25" min="0" max="3"></label>
         </div>
-        <p class="hint">Waivers and Trade add up your best lineup from the current week through the last week counted. Set it to the last week of your regular season or playoffs. Roster spots decides when a pickup or trade forces a drop.</p>
+        <p class="hint">Waivers and Trade add up your best lineup from the current week through the last week counted, which starts at your league's last playoff week. "Playoff weeks count" is how much a playoff week matters next to a regular-season week: 1.5 means half again as much, 1 means the same, 0 ignores the playoffs (useful if you won't make them). Roster spots decides when a pickup or trade forces a drop.</p>
       </div>
 
       <div class="card">
@@ -696,7 +697,10 @@ const DEFAULTS = () => ({
   scoringV: 3,
   byeWarn: 3,
   closeMargin: 1.5,
-  endWeek: 14,
+  // Count through the league's last playoff week; playoff weeks count extra (playoffWeight) in rest-of-season totals.
+  endWeek: Math.max(...((LG().playoffWeeks && LG().playoffWeeks.length) ? LG().playoffWeeks : [17])),
+  playoffWeight: 1.5,
+  valueV: 1,
   rosterSize: LG().rosterSize || 15,
   slots: Object.assign({ QB: 1, RB: 2, WR: 3, TE: 1, RBWR: 0, WRTE: 0, FLEX: 1, SFLEX: 0, K: 1, DST: 1 }, LG().slots || {}),
   prob: { healthy: 100, questionable: 75, doubtful: 25, out: 0, ir: 0 }
@@ -941,11 +945,20 @@ function buildTips(res, s, players) {
 /* ---- rest-of-season, waivers, trades ---- */
 const lastWeek = s => Math.max(s.week, Math.round(num(s.endWeek, 14)));
 
-// Best-lineup points for each week from the current week to the last week counted.
+// How much one week counts in rest-of-season totals: playoff weeks count `playoffWeight` times a regular week.
+const PLAYOFF_WEEKS = () => ((LG().playoffWeeks && LG().playoffWeeks.length) ? LG().playoffWeeks : [15, 16, 17]);
+const weekWeight = (s, w) => (PLAYOFF_WEEKS().includes(w) ? Math.max(0, num(s.playoffWeight, 1.5)) : 1);
+
+// Best-lineup points for each week from the current week to the last week counted (playoff weeks weighted).
 function rosTotal(players, s) {
   const byWeek = [];
-  for (let w = s.week; w <= lastWeek(s); w++) byWeek.push(optimize(players, s, w, w !== s.week).total);
-  return { total: byWeek.reduce((a, b) => a + b, 0), byWeek };
+  let total = 0;
+  for (let w = s.week; w <= lastWeek(s); w++) {
+    const t = optimize(players, s, w, w !== s.week).total;
+    byWeek.push(t);
+    total += t * weekWeight(s, w);
+  }
+  return { total, byWeek };
 }
 
 // What adding `cand` (and dropping the least useful player, if the roster is full) does for you.
@@ -1327,13 +1340,18 @@ function tradeValueModel(db, s) {
     repl[pos] = vals[Math.min(vals.length, replacementRank(pos, s)) - 1] || 0;
   });
   const first = s.week, last = lastWeek(s);
+  // Weeks he plays from now to the last week counted, with playoff weeks weighted.
   const weeksFor = p => {
     let n = 0;
-    for (let w = first; w <= last; w++) if (num(p.bye) !== w) n++;
+    for (let w = first; w <= last; w++) if (num(p.bye) !== w) n += weekWeight(s, w);
     return n;
   };
   const value = p => (p.status === 'ir' ? 0 : Math.max(0, rosValue(p, s) - (repl[p.pos] || 0)) * weeksFor(p));
-  return { repl, value };
+  // Star premium: in a package the best player counts in full, the next ones less (two decent players
+  // don't add up to one star, and the side getting more players has to cut someone).
+  const STEPS = [1, 0.8, 0.65, 0.5];
+  const pack = list => list.map(value).sort((a, b) => b - a).reduce((t, v, i) => t + v * (STEPS[i] != null ? STEPS[i] : 0.5), 0);
+  return { repl, value, pack };
 }
 
 // Shared machinery for the finder: rest-of-season lineup change for you and for the other team.
@@ -1392,7 +1410,7 @@ function packageOffers(pool, tv, evaluate, valueRange) {
   });
   for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) {
     const a = pool[i], b = pool[j];
-    const va = tv.value(a), vb = tv.value(b), v = va + vb;
+    const va = tv.value(a), vb = tv.value(b), v = tv.pack([a, b]);
     if (v < lo || v > hi) continue;
     const o = evaluate([a, b], v);
     if (o.tier === 0) continue;
@@ -1641,7 +1659,7 @@ function tradesWithTeam(mine, db, s, teamId, opts = {}) {
     for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) out.push([list[i], list[j]]);
     return out;
   };
-  const sum = ps => ps.reduce((t, p) => t + tv.value(p), 0);
+  const sum = ps => tv.pack(ps);
   const all = [];
   packs(mineP).forEach(give => {
     const gv = sum(give);
@@ -1721,6 +1739,15 @@ function loadState(tid) {
     }
     // Scoring versions: v2 read the league's offense rules from ESPN (0.25 per RB carry); v3 added its D/ST and K rules.
     // Database numbers are recomputed whenever the stored version is older than SCORING_V.
+    // Value model v1: count through the playoffs (weighted) instead of stopping at Week 14.
+    if (!num(d.settings.valueV)) {
+      s.endWeek = DEFAULTS().endWeek;
+      s.playoffWeight = 1.5;
+      s.valueV = 1;
+      d.players.forEach(p => { if (p.dbKey) p.ros = ''; });
+      (d.waivers || []).forEach(p => { if (p.dbKey) p.ros = ''; });
+      if (d.trade && Array.isArray(d.trade.get)) d.trade.get.forEach(p => { if (p.dbKey) p.ros = ''; });
+    }
     const sv = num(d.settings.scoringV);
     if (sv < 2) s.rushBonus = 0.25;
     if (sv < SCORING_V) {
@@ -2106,7 +2133,9 @@ function renderMatchup() {
   const oppName = LEAGUE.teams[m.opp] || 'Opponent';
   const scoredMe = m.me.rows.some(r => r.state !== 'upcoming'), scoredThem = m.them.rows.some(r => r.state !== 'upcoming');
   const side = (label, t, right, scored) => `<div class="side${right ? ' right' : ''}"><span class="lbl">${esc(label)}</span><span class="big">${fmt(t.total)}</span>${scored ? `<span class="meta" style="display:block">${fmt(t.scored)} scored so far</span>` : ''}</div>`;
-  const fav = m.win >= 0.5 ? `You are favored, ${pct(m.win)} to win.` : `You are the underdog, ${pct(m.win)} to win.`;
+  const fav = allDone
+    ? (m.me.total > m.them.total ? `Final: you won, ${fmt(m.me.total)} to ${fmt(m.them.total)}.` : m.me.total < m.them.total ? `Final: you lost, ${fmt(m.me.total)} to ${fmt(m.them.total)}.` : 'Final: a tie.')
+    : m.win >= 0.5 ? `You are favored, ${pct(m.win)} to win.` : `You are the underdog, ${pct(m.win)} to win.`;
   const notes = [];
   if (m.bestWin != null) notes.push(`Setting the app's lineup (${fmt(m.bestTotal)} projected) moves you to <strong>${pct(m.bestWin)}</strong>.`);
   if (m.close.length) {
@@ -2117,7 +2146,7 @@ function renderMatchup() {
   el.innerHTML = `<h2>Week ${DB.week} matchup</h2>
     <div class="vs">${side(teamName() || 'You', m.me, false, scoredMe)}<div class="mid">vs</div>${side(oppName, m.them, true, scoredThem)}</div>
     <div class="winbar" role="img" aria-label="Win chance ${pct(m.win)}"><span style="width:${pct(m.win)}"></span></div>
-    <p class="note"><strong>${fav}</strong> Projected totals use finished games' actual points and projections for the rest.</p>
+    <p class="note"><strong>${fav}</strong>${allDone ? '' : ' Projected totals use finished games\' actual points and projections for the rest.'}</p>
     ${notes.filter(Boolean).map(n => `<p class="note">${n}</p>`).join('')}`;
 }
 
@@ -2363,7 +2392,7 @@ const SUG_CHIPS = [['', 'All'], ['QB', 'QB'], ['RB', 'RB'], ['WR', 'WR'], ['TE',
 
 function sugSignature() {
   const s = state.settings;
-  return JSON.stringify([state.players.map(p => [p.id, p.pos, p.status, p.proj, p.ros, p.carries, p.bye]), s.week, s.endWeek, s.rushBonus, s.rosterSize, s.slots, s.prob]);
+  return JSON.stringify([state.players.map(p => [p.id, p.pos, p.status, p.proj, p.ros, p.carries, p.bye]), s.week, s.endWeek, s.playoffWeight, s.rushBonus, s.rosterSize, s.slots, s.prob]);
 }
 
 // One trade card, used by suggested trades and the trade finder. `attr` is the button's data attribute.
@@ -2403,7 +2432,7 @@ function openInAnalyzer(r) {
 
 /* trade finder */
 const TF = { mode: 'get', key: '', mineId: null, list: [], busy: false };
-const tfExplain = 'Trade value = rest-of-season points above a replacement-level starter at the position (the first player past what your league starts), over the weeks counted. Within 15% is fair. "You" and "Them" are how each best lineup changes.';
+const tfExplain = 'Trade value = rest-of-season points above a replacement-level starter at the position (the first player past what your league starts), through your playoffs, with playoff weeks counting extra (see Settings). In a package the best player counts in full, the second 80% and a third 65%, so two decent players do not add up to one star. Within 15% is fair. "You" and "Them" are how each best lineup changes.';
 
 function renderTradeFinder() {
   document.querySelectorAll('#tf-mode [data-tf-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tfMode === TF.mode)));
@@ -2542,6 +2571,7 @@ function renderSettings() {
   $('#set-byeWarn').value = s.byeWarn;
   $('#set-closeMargin').value = s.closeMargin;
   $('#set-endWeek').value = s.endWeek;
+  $('#set-playoffWeight').value = num(s.playoffWeight, 1.5);
   $('#set-rosterSize').value = s.rosterSize;
   $('#slot-inputs').innerHTML = SLOT_ORDER.map(k =>
     `<label class="f" for="set-slot-${k}">${SLOT_NAME[k] || POS_LABEL[k]}<input type="number" id="set-slot-${k}" data-set="slot:${k}" inputmode="numeric" step="1" min="0" max="6" value="${s.slots[k]}"></label>`).join('');
@@ -2938,7 +2968,8 @@ $('#view-settings').addEventListener('input', e => {
   if (key === 'rushBonus') s.rushBonus = Math.max(-5, Math.min(5, num(v)));
   else if (key === 'byeWarn') s.byeWarn = Math.max(1, Math.round(num(v, 3)));
   else if (key === 'closeMargin') s.closeMargin = Math.max(0, num(v, 1.5));
-  else if (key === 'endWeek') s.endWeek = Math.max(1, Math.min(18, Math.round(num(v, 14))));
+  else if (key === 'endWeek') s.endWeek = Math.max(1, Math.min(18, Math.round(num(v, 17))));
+  else if (key === 'playoffWeight') s.playoffWeight = Math.max(0, Math.min(3, num(v, 1.5)));
   else if (key === 'rosterSize') s.rosterSize = Math.max(1, Math.min(30, Math.round(num(v, 15))));
   else if (key.startsWith('slot:')) s.slots[key.slice(5)] = Math.max(0, Math.min(6, Math.round(num(v))));
   else if (key.startsWith('prob:')) s.prob[key.slice(5)] = Math.max(0, Math.min(100, num(v)));
