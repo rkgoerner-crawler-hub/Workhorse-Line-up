@@ -2377,13 +2377,13 @@ function renderGiveList() {
   state.trade.give = state.trade.give.filter(id => ids.has(id));
   const sorted = state.players.map((p, i) => ({ p, i })).sort((a, b) => POS.indexOf(a.p.pos) - POS.indexOf(b.p.pos) || a.i - b.i).map(x => x.p);
   $('#give-list').innerHTML = sorted.map(p =>
-    `<label class="give" for="g-${p.id}"><input type="checkbox" id="g-${p.id}" data-give="${p.id}"${state.trade.give.includes(p.id) ? ' checked' : ''}><span class="name">${esc(p.name)}</span><span class="meta">${POS_LABEL[p.pos]} · ${fmt(num(p.proj))} proj</span></label>`
+    `<label class="give" for="g-${p.id}"><input type="checkbox" id="g-${p.id}" data-give="${p.id}"${state.trade.give.includes(p.id) ? ' checked' : ''}><span class="name">${esc(p.name)}</span><span class="meta">${POS_LABEL[p.pos]} · ${fmt(num(p.proj))} proj</span>${trendPill(p)}</label>`
   ).join('') || '<p class="hint">Add players on the Team tab first.</p>';
 }
 
 function renderGetList() {
   $('#get-list').innerHTML = state.trade.get.map(g =>
-    `<div class="getrow"><div><div class="name">${esc(g.name)}</div><div class="meta">${POS_LABEL[g.pos]}${g.team ? ' · ' + esc(g.team) : ''} · ${STATUS_LABEL[g.status]} · ${fmt(num(g.proj))} proj${num(g.bye) ? ' · bye W' + num(g.bye) : ''}</div></div><button class="link" type="button" data-rm-get="${esc(g.id)}">Remove</button></div>`
+    `<div class="getrow"><div><div class="name">${esc(g.name)}</div><div class="meta">${POS_LABEL[g.pos]}${g.team ? ' · ' + esc(g.team) : ''} · ${STATUS_LABEL[g.status]} · ${fmt(num(g.proj))} proj${num(g.bye) ? ' · bye W' + num(g.bye) : ''}</div>${trendPill(g)}</div><button class="link" type="button" data-rm-get="${esc(g.id)}">Remove</button></div>`
   ).join('');
 }
 
@@ -2407,7 +2407,7 @@ function renderTradeResult() {
   }
   const s = state.settings;
   const r = evalTrade(state.players, t.give, t.get, s);
-  const flags = tradeFlags(r, t.get, s);
+  const flags = tradeFlags(r, t.get, s).concat(tradeTrendFlags(t));
   const per = r.rosDelta / Math.max(1, r.weeks);
   const dir = Math.abs(r.rosDelta) < 1 ? 'even' : r.rosDelta > 0 ? 'up' : 'down';
   const verdict = dir === 'even' ? 'Roughly even' : dir === 'up' ? 'Helps your lineup' : 'Hurts your lineup';
@@ -2430,6 +2430,27 @@ function renderTradeResult() {
     (flags.length ? `<div style="margin-top:22px"><div class="sec-head"><h2>Flags</h2></div><ul class="tips">${flags.map(f => `<li class="tip">${pill(f.kind, f.tag)}<p>${esc(f.text)}</p></li>`).join('')}</ul></div>` : '') +
     `<div style="margin-top:22px"><div class="sec-head"><h2>Change by week</h2><span class="sec-note">points per week</span></div>${deltaStrip(r.deltas, s.week)}<p class="legend">Each bar is how much your best lineup gains or loses that week with the trade. Dips usually line up with bye weeks.</p></div>` +
     `<details class="how" style="margin-top:22px"><summary>How this is figured</summary><p>Each week from now to the last week counted, your best lineup is rebuilt with and without the trade and the two are compared. This week uses today's projections and injury statuses. Later weeks use each player's rest-of-season average (or this week's projection if blank), count everyone as healthy except IR players, and zero out bye weeks. It does not know schedules, playoff matchups, or how long an injured player will miss.</p></details>`;
+}
+
+// Trend notes for the players in a trade: buying a riser or slider, selling one.
+function tradeTrendFlags(t) {
+  if (!LEAGUE) return [];
+  const give = state.players.filter(p => t.give.includes(p.id));
+  const out = [];
+  const say = (p, side) => {
+    const tr = playerTrend(DB, p);
+    if (!tr || tr.dir === 'steady') return;
+    const up = tr.dir === 'up';
+    const use = tr.useRecent != null ? `, ${fmt(tr.useRecent)} ${USAGE_WORD[p.pos] || 'touches'} a game (was ${fmt(tr.useBefore)})` : '';
+    const facts = `${p.name}: ${fmt(tr.recent)} pts a game over his last 3 (was ${fmt(tr.before)})${use}.`;
+    const note = side === 'get'
+      ? (up ? ' You are buying him while he is hot. The numbers above come from projections, which can be slow to catch up, so they may undersell him.' : ' You are buying him while his production is slipping. Projections can be slow to catch up, so the numbers above may oversell him.')
+      : (up ? ' You are selling him while he is on the rise. Projections can be slow to catch up, so you may be giving up more than the numbers above show.' : ' You are selling him while he is cooling off, which can be good timing.');
+    out.push({ kind: (side === 'get') === up ? 'ok' : 'warn', tag: `${side === 'get' ? 'Getting' : 'Giving'} ${up ? '▲' : '▼'} ${p.name.split(' ').slice(-1)[0]}`, text: facts + note });
+  };
+  give.forEach(p => say(p, 'give'));
+  t.get.forEach(p => say(p, 'get'));
+  return out;
 }
 
 /* suggested trades */
