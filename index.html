@@ -2137,7 +2137,8 @@ function renderMatchup() {
     ? (m.me.total > m.them.total ? `Final: you won, ${fmt(m.me.total)} to ${fmt(m.them.total)}.` : m.me.total < m.them.total ? `Final: you lost, ${fmt(m.me.total)} to ${fmt(m.them.total)}.` : 'Final: a tie.')
     : m.win >= 0.5 ? `You are favored, ${pct(m.win)} to win.` : `You are the underdog, ${pct(m.win)} to win.`;
   const notes = [];
-  if (m.bestWin != null) notes.push(`Setting the app's lineup (${fmt(m.bestTotal)} projected) moves you to <strong>${pct(m.bestWin)}</strong>.`);
+  // Only before your players kick off: after that the lineup is partly locked.
+  if (m.bestWin != null && m.me.rows.every(r => r.state === 'upcoming')) notes.push(`Setting the app's lineup (${fmt(m.bestTotal)} projected) moves you to <strong>${pct(m.bestWin)}</strong>.`);
   if (m.close.length) {
     notes.push('Close calls for this game: ' + m.close.map(c => `${esc(c.start.name)} (${fmt(c.start.exp)}) or ${esc(c.bench.name)} (${fmt(c.bench.exp)})`).join('; ') + '.');
     notes.push(m.win < 0.4 ? 'As the underdog, lean toward the player with the bigger ceiling when it is that close.' : m.win > 0.65 ? 'As the favorite, lean toward the steadier player when it is that close.' : '');
