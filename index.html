@@ -315,6 +315,12 @@ textarea.fallback { width: 100%; min-height: 120px; font: 13px var(--f-data); co
 details.how { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
 details.how summary { cursor: pointer; font-weight: 600; }
 details.how p { margin-top: 8px; color: var(--muted); }
+details.prof { margin-top: 2px; }
+details.prof > summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--accent); min-height: 32px; display: flex; align-items: center; }
+details.prof[open] > summary { margin-bottom: 8px; }
+details.prof > summary::-webkit-details-marker { display: none; }
+details.prof > summary::before { content: '▸'; margin-right: 6px; }
+details.prof[open] > summary::before { content: '▾'; }
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 12px; }
 .f { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; min-width: 0; }
@@ -2321,7 +2327,13 @@ function renderWcards() {
 }
 
 /* recommended pickups and upgrade spots */
-const REC = { pos: '', limit: 6, all: false, list: [] };
+const REC = { pos: '', limit: 6, all: false, list: [], open: new Set() };
+// Expandable season profile under a waiver card: the same weekly chart, stats, trend and playoff schedule as the Team page.
+function profileHtml(c) {
+  if (!LEAGUE || !c.dbKey) return '';
+  const body = seasonPanel(c) || '<div class="season"><p class="hint">No games played this season yet.</p></div>';
+  return `<details class="prof" data-prof="${esc(c.dbKey)}"${REC.open.has(c.dbKey) ? ' open' : ''}><summary>Season stats</summary>${body}</details>`;
+}
 const REC_CHIPS = [['', 'All'], ['QB', 'QB'], ['RB', 'RB'], ['WR', 'WR'], ['TE', 'TE'], ['K', 'K'], ['DST', 'D/ST']];
 
 function renderRecs() {
@@ -2341,7 +2353,7 @@ function renderRecs() {
   const shown = list.slice(0, REC.limit);
   $('#recs').innerHTML = shown.length
     ? shown.map((r, i) => pickCard(r, i, hot, s,
-        `<div class="pfoot"><button class="link" type="button" data-taken="${esc(r.cand.dbKey)}">Taken, hide</button><button class="btn" type="button" data-pickup="${esc(r.cand.dbKey)}">Picked up</button></div>`)).join('')
+        profileHtml(r.cand) + `<div class="pfoot"><button class="link" type="button" data-taken="${esc(r.cand.dbKey)}">Taken, hide</button><button class="btn" type="button" data-pickup="${esc(r.cand.dbKey)}">Picked up</button></div>`)).join('')
     : `<p class="hint">${DB.league && !REC.all ? 'No free agent here beats the players you have. Upgrades at this spot would have to come by trade; tap "Include players on other teams" to see targets.' : 'No pickup beats your current roster here. Try another position or include likely rostered players.'}</p>`;
   $('#rec-more').hidden = list.length <= REC.limit;
   $('#rec-all').setAttribute('aria-pressed', String(REC.all));
@@ -2934,6 +2946,11 @@ $('#rec-chips').addEventListener('click', e => {
 $('#rec-more').addEventListener('click', () => { REC.limit += 6; renderRecs(); });
 $('#rec-all').addEventListener('click', () => { REC.all = !REC.all; REC.limit = 6; renderRecs(); });
 $('#taken-reset').addEventListener('click', () => { state.taken = []; saveState(); renderRecs(); });
+$('#recs').addEventListener('toggle', e => {
+  const d = e.target;
+  if (!d.dataset || !d.dataset.prof) return;
+  if (d.open) REC.open.add(d.dataset.prof); else REC.open.delete(d.dataset.prof);
+}, true);
 $('#recs').addEventListener('click', e => {
   const t = e.target;
   if (t.dataset.taken) {
