@@ -91,16 +91,20 @@ def main():
     if len(byes) != 32:
         problems.append("expected 32 NFL teams in the schedule, got %d" % len(byes))
 
-    def load_lines(name):
+    def load_lines(name, current_team=False):
         out = {}
         for r in json.load(open(P(name))):
             s = r.get("stats") or {}
             p = players.get(r["player_id"])
             if s and p and p.get("position") in POSMAP:
+                # Upcoming weeks: skip a projection made for a team the player has since left
+                # (a player who just signed elsewhere can keep his old team's projection for a while).
+                if current_team and r.get("team") and p.get("team") and r.get("team") != p.get("team"):
+                    continue
                 out[r["player_id"]] = s
         return out
 
-    proj = {w: load_lines("proj_w%d.json" % w) for w in weeks}
+    proj = {w: load_lines("proj_w%d.json" % w, True) for w in weeks}
     pproj = {w: load_lines("proj_w%d.json" % w) for w in past}
     stats = {w: load_lines("stats_w%d.json" % w) for w in past}
 
@@ -154,7 +158,7 @@ def main():
         name = ((p.get("last_name") or team) + " D/ST") if pos == "DST" else (p.get("full_name") or ((p.get("first_name") or "") + " " + (p.get("last_name") or "")).strip())
         if (name, team) in seen:
             continue
-        pj = [enc(proj[w][pid]) if pid in proj[w] else 0 for w in weeks]
+        pj = [enc(proj[w][pid]) if pid in proj[w] and w != byes[team] else 0 for w in weeks]   # never project a bye week
         pts_hint = max([float((proj[w].get(pid) or {}).get("pts_ppr") or 0) for w in weeks] + [0])
         status = STATUS.get(p.get("injury_status"), "healthy")
         if pos not in ("K", "DST") and pts_hint < 1.0 and status not in ("ir", "out") and not any(pid in stats[w] for w in past):
