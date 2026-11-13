@@ -128,6 +128,7 @@ h2 {
   min-height: 44px;
   font: 600 13px var(--f-body);
   padding: 8px 2px;
+  white-space: nowrap;
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
@@ -135,6 +136,7 @@ h2 {
   cursor: pointer;
 }
 .tab[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+@media (max-width: 440px) { .tabs { gap: 3px; } .tab { font-size: 11.5px; letter-spacing: -0.01em; padding: 8px 0; border-radius: 7px; } }
 
 [hidden] { display: none !important; }
 .panel { display: flex; flex-direction: column; gap: 22px; padding-block: 16px; }
@@ -416,6 +418,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" id="tab-lineup" aria-selected="true" aria-controls="view-lineup" data-tab="lineup">Team</button>
+    <button class="tab" role="tab" id="tab-startsit" aria-selected="false" aria-controls="view-startsit" data-tab="startsit">Start/Sit</button>
     <button class="tab" role="tab" id="tab-waivers" aria-selected="false" aria-controls="view-waivers" data-tab="waivers">Waivers</button>
     <button class="tab" role="tab" id="tab-trade" aria-selected="false" aria-controls="view-trade" data-tab="trade">Trade</button>
  <button class="tab" role="tab" id="tab-league" aria-selected="false" aria-controls="view-league" data-tab="league">League</button>
@@ -510,6 +513,27 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
         <button class="btn" id="reset-sample" type="button">Load example roster</button>
         <button class="btn danger" id="clear-roster" type="button">Clear roster</button>
         <span class="msg" id="roster-msg" role="status"></span>
+      </div>
+    </section>
+
+    <!-- START / SIT -->
+    <section class="panel" id="view-startsit" role="tabpanel" aria-labelledby="tab-startsit" hidden>
+      <div>
+        <div class="sec-head"><h2>Who should I start?</h2><span class="sec-note" id="ss-note"></span></div>
+        <div class="stack">
+          <p class="hint" id="ss-hint">Tap 2 or more of your players to compare them for this week.</p>
+          <div class="chips" id="ss-mine" role="group" aria-label="Your players"></div>
+          <details class="how" id="ss-other"><summary>Compare someone not on your team</summary><div class="card" id="picker-ss" style="margin-top:10px"></div></details>
+          <div id="ss-result"></div>
+        </div>
+      </div>
+      <div>
+        <div class="sec-head"><h2>Start 'em, sit 'em</h2><span class="sec-note" id="ssw-note"></span></div>
+        <div class="stack">
+          <div class="chips" id="ssw-who" role="group" aria-label="Whose players"></div>
+          <div class="chips" id="ssw-pos" role="group" aria-label="Position"></div>
+          <div id="ssw-result"></div>
+        </div>
       </div>
     </section>
 
@@ -1727,6 +1751,95 @@ function playerTrend(db, p) {
   return { dir, recent: pr, before: pb, dp, useRecent: ur, useBefore: ub, du, games: games.length };
 }
 const USAGE_WORD = { QB: 'dropbacks and runs', RB: 'touches', WR: 'targets and carries', TE: 'targets and carries' };
+
+// ---------- start / sit ----------
+// This week's opponent for a player's NFL team and how generous that defense has been to his position.
+// rank 1 = the defense that has given up the most fantasy points per game to the position.
+let mupCache = null;
+function matchupInfo(db, team, pos, week) {
+  const opp = (((db.nfl || {}).opp || {})[team] || {})[week];
+  if (!opp) return null;
+  const key = (db.version || '') + '|' + pos;
+  if (!mupCache || mupCache.key !== key) {
+    const allow = (db.nfl || {}).allow || {};
+    const order = Object.keys(allow).filter(t => num(allow[t][pos]) > 0).sort((a, b) => num(allow[b][pos]) - num(allow[a][pos]));
+    mupCache = { key, order };
+  }
+  const t = opp.replace('@', '');
+  const i = mupCache.order.indexOf(t), of = mupCache.order.length;
+  if (i < 0) return { opp, rank: null, of, label: 'average' };
+  const rank = i + 1;
+  return { opp, rank, of, label: rank <= Math.round(of / 4) ? 'easy' : rank > of - Math.round(of / 4) ? 'tough' : 'average' };
+}
+// A player's usual range this season: the middle half of his games (25th to 75th percentile), in league points.
+function playerRange(db, p) {
+  const sp = db.season && db.season.players && p && p.dbKey ? db.season.players[p.dbKey] : null;
+  const g = sp ? sp.pts.filter(v => v != null).slice().sort((a, b) => a - b) : [];
+  if (g.length < 4) return null;
+  const q = f => { const x = f * (g.length - 1), lo = Math.floor(x), hi = Math.ceil(x); return g[lo] + (g[hi] - g[lo]) * (x - lo); };
+  return { floor: q(0.25), ceil: q(0.75), avg: g.reduce((a, b) => a + b, 0) / g.length, games: g.length };
+}
+// Ranks 2 or more players for this week. Picks by expected points (projection × chance he plays).
+// When the top choices are within the close-call margin, uses your chance of winning the matchup:
+// favored → the steadier player (higher floor); underdog → the higher ceiling.
+function startSitCompare(db, s, players, nStart = 1, winProb = null) {
+  const rows = players.map(p => {
+    const team = p.team || (p.dbKey ? p.dbKey.split('|').pop() : '');
+    const ev = evalPlayer({ ...p, team }, s);
+    return { p: ev, team, mup: team ? matchupInfo(db, team, p.pos, s.week) : null, range: playerRange(db, p), trend: playerTrend(db, p) };
+  }).sort((a, b) => b.p.exp - a.p.exp || b.p.adj - a.p.adj);
+  const margin = Math.max(1.5, num(s.closeMargin));
+  let tiebreak = null;
+  const k = Math.min(Math.max(1, nStart), rows.length - 1);
+  if (rows.length > k) {
+    const inP = rows[k - 1], outP = rows[k];
+    const gap = inP.p.exp - outP.p.exp;
+    if (gap <= margin && inP.p.exp > 0 && outP.p.exp > 0 && inP.range && outP.range && winProb != null && (winProb >= 0.6 || winProb <= 0.4)) {
+      const favored = winProb >= 0.6;
+      const better = favored ? outP.range.floor > inP.range.floor + 0.5 : outP.range.ceil > inP.range.ceil + 0.5;
+      if (better) { rows[k - 1] = outP; rows[k] = inP; tiebreak = { favored, winProb, gap }; }
+      else tiebreak = { favored, winProb, gap, kept: true };
+    }
+  }
+  return { rows, nStart: k, margin, tiebreak, gap: rows.length > k ? rows[k - 1].p.exp - rows[k].p.exp : null };
+}
+// League-wide start 'em / sit 'em for this week, using the league's scoring and how many starters it uses.
+// Start 'em: usually outside the starting line at his position, but projected inside it this week.
+// Sit 'em: usually a starter, but projected outside the line this week (bye weeks and players ruled out left off).
+function weeklyStartSit(db, s) {
+  const byPos = {}, missing = {};
+  db.players.forEach(r => {
+    const p = dbPlayer(db, r, s);
+    // Teammates at the same position who are out: the usual reason a backup's projection jumps.
+    if (['ir', 'out', 'doubtful'].includes(p.status)) (missing[p.team + '|' + p.pos] = missing[p.team + '|' + p.pos] || []).push(p);
+    if (r[4] === 'ir') return;
+    (byPos[p.pos] = byPos[p.pos] || []).push(p);
+  });
+  const out = { start: [], sit: [] };
+  Object.entries(byPos).forEach(([pos, list]) => {
+    const line = replacementRank(pos, s) - 1;
+    if (line < 1) return;
+    const usual = list.slice().sort((a, b) => rosValue(b, s) - rosValue(a, s));
+    const rosRank = new Map(usual.map((p, i) => [p.dbKey, i + 1]));
+    const week = list.map(p => ({ p, ev: evalPlayer(p, s) })).sort((a, b) => b.ev.exp - a.ev.exp);
+    week.forEach(({ p, ev }, i) => {
+      const wr = i + 1, rr = rosRank.get(p.dbKey);
+      const base = { p, ev, weekRank: wr, rosRank: rr, line, mup: matchupInfo(db, p.team, pos, s.week), trend: playerTrend(db, p) };
+      if (ev.exp > 0 && wr <= line && rr > Math.ceil(line * 1.15)) {
+        const v = rosValue(p, s);
+        const fill = (missing[p.team + '|' + pos] || []).filter(m => (m.status === 'ir' ? num(m.ros) || num(m.proj) : rosValue(m, s)) > v * 0.9)
+          .sort((a, b) => num(b.ros) - num(a.ros));
+        out.start.push({ ...base, jump: rr - wr, fillIn: fill.slice(0, 2).map(m => m.name) });
+      }
+      else if (rr <= Math.floor(line * 0.85) && wr > line && !ev.onBye && !['out', 'doubtful'].includes(p.status)) out.sit.push({ ...base, jump: wr - rr });
+    });
+  });
+  // Kickers and defenses swing more week to week, so they rank below skill players with the same jump.
+  const score = x => x.jump / x.line * (x.p.pos === 'K' || x.p.pos === 'DST' ? 0.5 : 1);
+  out.start.sort((a, b) => score(b) - score(a));
+  out.sit.sort((a, b) => score(b) - score(a));
+  return out;
+}
 /* LOGIC END */
 
 let DB = null;
@@ -2383,6 +2496,135 @@ function renderSpots() {
 
 function renderWaivers() { renderWcards(); renderPickups(); renderRecs(); }
 
+/* ---------- start / sit view ---------- */
+const SS = { sel: [], extra: [], n: 1, who: 'all', pos: '', limit: 8 };
+const ssKick = p => { const k = (DB.kickoffs || {})[p.team || (p.dbKey ? p.dbKey.split('|').pop() : '')]; return k || null; };
+const kickTxt = k => new Date(k).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+function mupTxt(m, pos) {
+  if (!m) return '';
+  const vs = m.opp.startsWith('@') ? m.opp : 'vs ' + m.opp;
+  if (m.rank == null) return vs;
+  return `${vs}: ${m.label === 'easy' ? 'a good matchup' : m.label === 'tough' ? 'a tough matchup' : 'an average matchup'} (${ordinal(m.rank)} most points allowed to ${POS_LABEL[pos]}s of ${m.of})`;
+}
+function ssPool() {
+  return state.players.filter(p => p.status !== 'ir').concat(SS.extra);
+}
+function ssWin() {
+  if (!LEAGUE || !teamId || DB.league.bestBall || state.settings.week !== DB.week) return null;
+  try { const m = matchupFor(DB, teamId, state.settings); return m ? m.win : null; } catch (e) { return null; }
+}
+function renderStartSit() {
+  const s = state.settings;
+  const bb = LEAGUE && DB.league.bestBall;
+  $('#ss-note').textContent = `Week ${s.week} · your league's scoring`;
+  const pool = ssPool();
+  SS.sel = SS.sel.filter(id => pool.some(p => String(p.id) === String(id)));
+  const order = { QB: 0, RB: 1, WR: 2, TE: 3, K: 4, DST: 5 };
+  $('#ss-mine').innerHTML = pool.slice().sort((a, b) => order[a.pos] - order[b.pos] || evalPlayer(b, s).exp - evalPlayer(a, s).exp).map(p =>
+    `<button class="chip" type="button" data-ss="${esc(String(p.id))}" aria-pressed="${SS.sel.includes(String(p.id))}">${esc(p.name.split(' ').slice(-1)[0] === 'D/ST' ? p.name : p.name.split(' ').slice(1).join(' ') || p.name)} · ${POS_LABEL[p.pos]}${String(p.id).startsWith('s') ? ' ✕' : ''}</button>`).join('');
+  $('#ss-hint').textContent = bb
+    ? 'Best ball sets your lineup for you each week, but you can still compare players here.'
+    : 'Tap 2 or more players to compare them for this week. Players you added from outside your team show ✕; tap again to remove.';
+  renderSsResult();
+  renderSsWeekly();
+}
+function renderSsResult() {
+  const s = state.settings;
+  const el = $('#ss-result');
+  const pool = ssPool();
+  const picked = SS.sel.map(id => pool.find(p => String(p.id) === id)).filter(Boolean);
+  if (picked.length < 2) { el.innerHTML = ''; return; }
+  const win = ssWin();
+  SS.n = Math.min(SS.n, picked.length - 1);
+  const r = startSitCompare(DB, s, picked, SS.n, win);
+  const k = r.nStart;
+  const mixed = picked.some(a => picked.some(b => a !== b && !canSwap(a.pos, b.pos, s) && !canSwap(b.pos, a.pos, s)));
+  const now = DB.dataTime || Date.now();
+  const names = list => list.map(x => esc(x.p.name)).join(', ');
+  const starts = r.rows.slice(0, k), sits = r.rows.slice(k);
+  let why;
+  if (r.tiebreak && !r.tiebreak.kept) {
+    const t = r.tiebreak, a = starts[k - 1], b = sits[0];
+    why = `Close call: ${esc(b.p.name)} is projected ${fmt(Math.abs(t.gap))} pts higher, but you are ${t.favored ? 'favored' : 'the underdog'} this week (${Math.round(t.winProb * 100)}% to win), so ${t.favored ? `the steadier player gets the nod. ${esc(a.p.name)} usually scores ${fmt(a.range.floor)}–${fmt(a.range.ceil)}; ${esc(b.p.name)} ${fmt(b.range.floor)}–${fmt(b.range.ceil)}.` : `you need upside. ${esc(a.p.name)} has the higher ceiling (${fmt(a.range.ceil)} in his better games vs ${fmt(b.range.ceil)}).`}`;
+  } else if (r.gap != null && r.gap <= r.margin) {
+    why = `Close call: ${fmt(r.gap)} projected points apart. ${win != null ? `You are ${win >= 0.6 ? 'favored' : win <= 0.4 ? 'the underdog' : 'in a toss-up'} this week (${Math.round(win * 100)}% to win)${r.tiebreak && r.tiebreak.kept ? ', and the projection leader is also the better fit for that' : ''}.` : ''} Check game-day news before kickoff.`;
+  } else {
+    why = r.gap != null ? `${fmt(r.gap)} more projected points${sits.length > 1 ? ' than the next best' : ''}.` : '';
+  }
+  const card = (x, i) => {
+    const p = x.p, start = i < k;
+    const kick = ssKick(p);
+    const locked = kick && kick <= now;
+    const notes = [];
+    if (p.onBye) notes.push('On bye this week.');
+    else if (p.status !== 'healthy') notes.push(`${STATUS_LABEL[p.status]}${p.note ? ' (' + esc(p.note) + ')' : ''}: counted at ${Math.round(p.chance * 100)}% to play.`);
+    if (x.mup && !p.onBye) notes.push(esc(mupTxt(x.mup, p.pos)) + '.');
+    if (x.trend && x.trend.dir !== 'steady') notes.push(`${x.trend.dir === 'up' ? 'Trending up' : 'Trending down'}: ${fmt(x.trend.recent)} pts a game over his last 3 (was ${fmt(x.trend.before)}).`);
+    if (kick) notes.push(locked ? 'His game has started, so he is locked.' : `Kickoff ${esc(kickTxt(kick))}.`);
+    const owner = ownerName(p.dbKey);
+    return `<article class="pick">
+      <div class="pick-head"><div class="rank">${i + 1}</div><div><div class="name">${esc(p.name)}</div><div class="meta">${pill(start ? 'ok' : 'bad', start ? 'Start' : 'Sit')}<span>${POS_LABEL[p.pos]}${x.team ? ' · ' + esc(x.team) : ''}</span>${owner ? pill('info', 'On ' + owner) : ''}</div></div></div>
+      <dl class="mini"><div><dt>Projected</dt><dd>${fmt(p.exp)}</dd></div><div><dt>Usual range</dt><dd>${x.range ? fmt(x.range.floor) + '–' + fmt(x.range.ceil) : '–'}</dd></div><div><dt>Season avg</dt><dd>${x.range ? fmt(x.range.avg) : '–'}</dd></div></dl>
+      <p class="hint">${notes.join(' ')}</p>
+    </article>`;
+  };
+  const nSel = picked.length > 2
+    ? `<label class="f" for="ss-n" style="max-width:220px">How many will you start?<select id="ss-n">${Array.from({ length: picked.length - 1 }, (_, i) => `<option value="${i + 1}"${i + 1 === k ? ' selected' : ''}>${i + 1}</option>`).join('')}</select></label>` : '';
+  el.innerHTML = `<div class="stack">${nSel}
+    <div class="card"><div class="eyebrow">Verdict</div><h2 style="margin:4px 0 6px">Start ${names(starts)}</h2><p class="compare">${why}</p>${mixed ? '<p class="hint">Some of these players can\'t fill the same lineup spot in your league, so compare players at the same position or for a flex spot.</p>' : ''}</div>
+    ${r.rows.map(card).join('')}
+    <p class="hint">"Projected" is this week's projection in your league's scoring, times his chance to play. "Usual range" is the middle half of his games this season (a quarter of his games were lower, a quarter higher). Matchups rank defenses by fantasy points allowed per game to the position this season.</p></div>`;
+}
+const SSW_WHO = [['all', 'Everyone'], ['mine', 'My team'], ['fa', 'Free agents']];
+function renderSsWeekly() {
+  const s = state.settings;
+  const lg = DB.league;
+  const mine = new Set(state.players.map(p => p.dbKey).filter(Boolean));
+  $('#ssw-note').textContent = `Week ${s.week} · ${LEAGUE_SIZE()} teams`;
+  $('#ssw-who').innerHTML = SSW_WHO.filter(([c]) => c !== 'fa' || (lg && lg.rostered)).map(([c, l]) =>
+    `<button class="chip" type="button" data-ssw-who="${c}" aria-pressed="${SS.who === c}">${l}</button>`).join('');
+  $('#ssw-pos').innerHTML = REC_CHIPS.filter(([c]) => !c || num(s.slots[c]) > 0).map(([c, l]) =>
+    `<button class="chip" type="button" data-ssw-pos="${c}" aria-pressed="${SS.pos === c}">${l}</button>`).join('');
+  const w = weeklyStartSit(DB, s);
+  const keep = x => (!SS.pos || x.p.pos === SS.pos) && (SS.who === 'all' || (SS.who === 'mine' ? mine.has(x.p.dbKey) : !(lg && lg.rostered && x.p.dbKey in lg.rostered) && !mine.has(x.p.dbKey)));
+  const lineTxt = x => `${POS_LABEL[x.p.pos]}${x.weekRank} this week (usually ${POS_LABEL[x.p.pos]}${x.rosRank}; your league starts about ${x.line})`;
+  const item = (x, start) => {
+    const why = [];
+    if (start && x.fillIn && x.fillIn.length) why.push(`${x.fillIn.join(' and ')} ${x.fillIn.length > 1 ? 'are' : 'is'} out, so he should see more work`);
+    if (x.mup) why.push(mupTxt(x.mup, x.p.pos));
+    if (x.trend && x.trend.dir !== 'steady') why.push(x.trend.dir === 'up' ? `trending up (${fmt(x.trend.recent)} pts a game over his last 3)` : `trending down (${fmt(x.trend.recent)} pts a game over his last 3)`);
+    if (!start && x.p.status === 'questionable') why.push('questionable');
+    const owner = mine.has(x.p.dbKey) ? 'Your team' : ownerName(x.p.dbKey) || (lg && lg.rostered ? 'Free agent' : '');
+    return `<li class="tip">${pill(start ? 'ok' : 'bad', start ? 'Start' : 'Sit')}<p><strong>${esc(x.p.name)}</strong> <span class="meta" style="display:inline">${esc(x.p.team)}${owner ? ' · ' + esc(owner) : ''}</span><br>${fmt(x.ev.exp)} projected, ${esc(lineTxt(x))}.${why.length ? ' ' + esc(why.join('; ')) + '.' : ''}</p></li>`;
+  };
+  const st = w.start.filter(keep).slice(0, SS.limit), si = w.sit.filter(keep).slice(0, SS.limit);
+  const empty = t => `<p class="hint">${t}</p>`;
+  $('#ssw-result').innerHTML =
+    `<h3 style="margin:4px 0 8px">Start 'em</h3>${st.length ? `<ul class="tips">${st.map(x => item(x, true)).join('')}</ul>` : empty('No one here is projected well above his usual level this week.')}
+     <h3 style="margin:18px 0 8px">Sit 'em</h3>${si.length ? `<ul class="tips">${si.map(x => item(x, false)).join('')}</ul>` : empty('No usual starter here is projected well below his usual level this week.')}
+     <p class="hint" style="margin-top:12px">Start 'em: players who usually rank outside the starting line at their position but are projected inside it this week. Sit 'em: usual starters projected outside it this week. Players on bye or ruled out are left off. The starting line comes from your league's size and lineup spots, and points use your league's scoring.</p>`;
+}
+$('#view-startsit').addEventListener('click', e => {
+  const c = e.target.closest('[data-ss]');
+  if (c) {
+    const id = c.dataset.ss;
+    if (SS.sel.includes(id)) {
+      SS.sel = SS.sel.filter(x => x !== id);
+      if (id.startsWith('s')) SS.extra = SS.extra.filter(p => p.id !== id);
+    } else SS.sel.push(id);
+    renderStartSit();
+    if (id.startsWith('s')) renderPicker('ss');
+    return;
+  }
+  const w = e.target.closest('[data-ssw-who]');
+  if (w) { SS.who = w.dataset.sswWho; renderSsWeekly(); return; }
+  const pz = e.target.closest('[data-ssw-pos]');
+  if (pz) { SS.pos = SS.pos === pz.dataset.sswPos ? '' : pz.dataset.sswPos; renderSsWeekly(); }
+});
+$('#view-startsit').addEventListener('change', e => {
+  if (e.target.id === 'ss-n') { SS.n = parseInt(e.target.value, 10) || 1; renderSsResult(); }
+});
+
 /* ---------- trade view ---------- */
 function renderGiveList() {
   const ids = new Set(state.players.map(p => p.id));
@@ -2663,13 +2905,14 @@ function renderSettings() {
 const PICKERS = {
   roster: { title: 'Find a player', pos: '' },
   wv: { title: 'Find a candidate', pos: '' },
-  tg: { title: 'You get', pos: '' }
+  tg: { title: 'You get', pos: '' },
+  ss: { title: 'Find a player', pos: '' }
 };
 const PICK_CHIPS = [['', 'All'], ['QB', 'QB'], ['RB', 'RB'], ['WR', 'WR'], ['TE', 'TE'], ['K', 'K'], ['DST', 'D/ST']];
 const dbKeyOf = r => r[0] + '|' + r[2];
 
 function onList(kind, r) {
-  const list = kind === 'roster' ? state.players : kind === 'wv' ? state.waivers : state.trade.get;
+  const list = kind === 'roster' ? state.players : kind === 'wv' ? state.waivers : kind === 'ss' ? SS.extra : state.trade.get;
   const key = dbKeyOf(r);
   return list.some(p => p.dbKey === key);
 }
@@ -2723,6 +2966,11 @@ function pickPlayer(kind, idx) {
   } else if (kind === 'wv') {
     state.waivers.push({ id: 'w' + nextTmp++, ...base });
     saveState(); renderWaivers();
+  } else if (kind === 'ss') {
+    const id = 's' + nextTmp++;
+    SS.extra.push({ id, ...base });
+    SS.sel.push(id);
+    renderStartSit();
   } else {
     state.trade.get.push({ id: 't' + nextTmp++, ...base });
     saveState(); renderGetList(); renderTradeResult();
@@ -2775,10 +3023,11 @@ $('#refresh-db').addEventListener('click', () => {
 });
 
 /* ---------- wiring ---------- */
-const TABS = ['lineup', 'waivers', 'trade', 'league', 'settings'];
+const TABS = ['lineup', 'startsit', 'waivers', 'trade', 'league', 'settings'];
 function showTab(name) {
   document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
   TABS.forEach(t => { $('#view-' + t).hidden = t !== name; });
+  if (name === 'startsit') renderStartSit();
   if (name === 'waivers') renderWaivers();
   if (name === 'trade') renderTrade();
   if (name === 'league') renderLeague();
@@ -3101,7 +3350,7 @@ $('#board-copy').addEventListener('click', () => {
 renderSettings();
 renderRoster();
 renderLineup();
-['roster', 'wv', 'tg'].forEach(initPicker);
+['roster', 'wv', 'tg', 'ss'].forEach(initPicker);
 renderTeamControls();
 
 // Website extras: league list in Settings, a share link, and re-rendering when earlier weeks finish loading.
