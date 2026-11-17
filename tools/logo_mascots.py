@@ -210,3 +210,144 @@ def panda_art(white='#F4F4F2', black='#16161B', shade='#D8D8D4', eye='#FF5A3C'):
 <path d="M38 48 L56 53 L55 56.4 L39 52 Z" fill="{black}"/><path d="M90 48 L72 53 L73 56.4 L89 52 Z" fill="{black}"/>'''
 
 MASCOTS += [('cat', 'Cool cat', cat_art), ('dragon', 'Dragon', dragon_art), ('lion', 'Lion', lion_art), ('gorilla', 'Gorilla', gorilla_art), ('panda', 'Panda', panda_art)]
+
+def eyes(l, r, col, brow=INK):
+    # Angled fierce eye pair: l/r are (x, y) centers.
+    (lx, ly), (rx, ry) = l, r
+    return (f'<path d="M{lx-9} {ly-5} L{lx+8} {ly} L{lx+5} {ly+5} L{lx-6} {ly+3} Z" fill="{INK}"/>'
+            f'<path d="M{rx+9} {ry-5} L{rx-8} {ry} L{rx-5} {ry+5} L{rx+6} {ry+3} Z" fill="{INK}"/>'
+            f'<path d="M{lx-5} {ly} L{lx+3} {ly+2.2} L{lx+1.5} {ly+4} L{lx-4} {ly+2.8} Z" fill="{col}"/>'
+            f'<path d="M{rx+5} {ry} L{rx-3} {ry+2.2} L{rx-1.5} {ry+4} L{rx+4} {ry+2.8} Z" fill="{col}"/>'
+            f'<path d="M{lx-11} {ly-9} L{lx+10} {ly-3} L{lx+9} {ly} L{lx-10} {ly-5} Z" fill="{brow}"/>'
+            f'<path d="M{rx+11} {ry-9} L{rx-10} {ry-3} L{rx-9} {ry} L{rx+10} {ry-5} Z" fill="{brow}"/>')
+
+def tiger_art(fur='#F08A24', light='#FFB55C', white='#FFF6EA', stripe='#1E120A', eye='#9BE15D'):
+    return f'''
+<g stroke="{INK}" stroke-width="2.6" stroke-linejoin="round">
+  <path d="M30 40 L24 16 L48 28 Z" fill="{fur}"/><path d="M98 40 L104 16 L80 28 Z" fill="{fur}"/>
+  <path d="M64 24 Q94 24 104 44 L114 56 L104 60 L112 72 L100 76 Q96 104 64 112 Q32 104 28 76 L16 72 L24 60 L14 56 L24 44 Q34 24 64 24 Z" fill="{fur}"/>
+</g>
+<path d="M30 36 L28 22 L42 30 Z M98 36 L100 22 L86 30 Z" fill="{white}"/>
+<path d="M54 30 L57 38 M64 28 V38 M74 30 L71 38 M59 40 L61 46 M69 40 L67 46" fill="none" stroke="{stripe}" stroke-width="3" stroke-linecap="round"/>
+<path d="M26 52 L40 56 M24 64 L38 64 M102 52 L88 56 M104 64 L90 64" stroke="{stripe}" stroke-width="3.4" stroke-linecap="round"/>
+<path d="M36 76 Q40 96 58 104 L64 92 L70 104 Q88 96 92 76 Q80 70 64 72 Q48 70 36 76 Z" fill="{white}" stroke="{INK}" stroke-width="2.2" stroke-linejoin="round"/>
+<path d="M57 72 Q64 67 71 72 Q70 79 64 80 Q58 79 57 72 Z" fill="{INK}"/>
+<path d="M64 80 V86 M64 86 Q57 92 51 88 M64 86 Q71 92 77 88" fill="none" stroke="{INK}" stroke-width="2" stroke-linecap="round"/>
+<path d="M55 90 L57 97 L59.5 91 Z M73 90 L71 97 L68.5 91 Z" fill="#FFFFFF" stroke="{INK}" stroke-width="1.1" stroke-linejoin="round"/>
+{eyes((47, 56), (81, 56), eye)}'''
+
+def robot_art(metal='#9AA5B4', dark='#5D6878', light='#D3DAE3', glow='#3DE8FF', bolt='#E9B44C'):
+    return f'''
+<path d="M64 6 V20" stroke="{INK}" stroke-width="3"/><circle cx="64" cy="7" r="5" fill="#FF4D4D" stroke="{INK}" stroke-width="2.2"/>
+<g stroke="{INK}" stroke-width="2.6" stroke-linejoin="round">
+  <rect x="14" y="52" width="12" height="26" rx="4" fill="{dark}"/><rect x="102" y="52" width="12" height="26" rx="4" fill="{dark}"/>
+  <path d="M30 20 H98 Q106 20 106 28 V96 Q106 112 90 114 H38 Q22 112 22 96 V28 Q22 20 30 20 Z" fill="{metal}"/>
+</g>
+<path d="M26 26 Q26 22 32 22 H96 Q102 22 102 26 V34 H26 Z" fill="{light}" opacity=".7"/>
+<path d="M23 64 V96 Q23 110 38 112 H44 Q30 104 30 90 V64 Z" fill="{dark}" opacity=".55"/>
+<rect x="30" y="44" width="68" height="26" rx="10" fill="#0B1220" stroke="{INK}" stroke-width="2.4"/>
+<path d="M38 52 L58 58 L56 63 L40 60 Z M90 52 L70 58 L72 63 L88 60 Z" fill="{glow}"/>
+<path d="M40 54 L50 57" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" opacity=".8"/>
+<rect x="40" y="84" width="48" height="18" rx="4" fill="{dark}" stroke="{INK}" stroke-width="2.2"/>
+<path d="M48 84 V102 M56 84 V102 M64 84 V102 M72 84 V102 M80 84 V102" stroke="{INK}" stroke-width="1.8"/>
+<circle cx="31" cy="30" r="2.6" fill="{bolt}" stroke="{INK}" stroke-width="1.2"/><circle cx="97" cy="30" r="2.6" fill="{bolt}" stroke="{INK}" stroke-width="1.2"/>
+<circle cx="31" cy="104" r="2.6" fill="{bolt}" stroke="{INK}" stroke-width="1.2"/><circle cx="97" cy="104" r="2.6" fill="{bolt}" stroke="{INK}" stroke-width="1.2"/>'''
+
+def rhino_art(skin='#8A919C', dark='#5E6570', light='#B4BAC3', horn='#EFE6D2', eye='#F2C230'):
+    return f'''
+<g stroke="{INK}" stroke-width="2.6" stroke-linejoin="round">
+  <path d="M32 40 L20 20 L42 30 Z" fill="{skin}"/><path d="M96 40 L108 20 L86 30 Z" fill="{skin}"/>
+  <path d="M64 26 Q90 26 98 44 Q104 60 98 74 L96 92 Q92 114 64 116 Q36 114 32 92 L30 74 Q24 60 30 44 Q38 26 64 26 Z" fill="{skin}"/>
+  <path d="M52 80 Q54 46 64 18 Q74 46 76 80 Z" fill="{horn}"/>
+  <path d="M56 56 Q58 44 64 36 Q70 44 72 56 Z" fill="{horn}"/>
+</g>
+<path d="M31 46 Q26 60 31 74 L33 92 Q36 108 48 113 Q40 98 40 84 L38 60 Z" fill="{dark}"/>
+<path d="M40 92 Q44 110 64 112 Q84 110 88 92 Q78 86 64 86 Q50 86 40 92 Z" fill="{light}" stroke="{INK}" stroke-width="2.2"/>
+<path d="M50 100 Q46 94 51 91 Q55 94 54 100 Z M78 100 Q82 94 77 91 Q73 94 74 100 Z" fill="{INK}"/>
+<path d="M54 107 Q64 110 74 107" fill="none" stroke="{INK}" stroke-width="2" stroke-linecap="round"/>
+<path d="M30 54 Q36 60 32 68 M98 54 Q92 60 96 68" fill="none" stroke="{dark}" stroke-width="2" stroke-linecap="round"/>
+{eyes((40, 62), (88, 62), eye)}'''
+
+def owl_art(feather='#7A4E2C', dark='#4E2F17', light='#A97A4E', face='#E9D3AE', beak='#F2B52B', eye='#FFB21A'):
+    return f'''
+<g stroke="{INK}" stroke-width="2.6" stroke-linejoin="round">
+  <path d="M26 46 L16 10 L46 30 Z" fill="{feather}"/><path d="M102 46 L112 10 L82 30 Z" fill="{feather}"/>
+  <path d="M64 24 Q100 24 108 54 Q114 84 94 104 Q80 118 64 118 Q48 118 34 104 Q14 84 20 54 Q28 24 64 24 Z" fill="{feather}"/>
+</g>
+<path d="M26 40 L22 18 L40 32 Z M102 40 L106 18 L88 32 Z" fill="{dark}"/>
+<path d="M44 96 L50 104 M54 100 L60 108 M68 100 L74 108 M78 96 L84 104 M58 90 L64 98 M70 90 L74 96" stroke="{dark}" stroke-width="2" stroke-linecap="round"/>
+<circle cx="45" cy="62" r="19" fill="{face}" stroke="{INK}" stroke-width="2.4"/><circle cx="83" cy="62" r="19" fill="{face}" stroke="{INK}" stroke-width="2.4"/>
+<circle cx="47" cy="64" r="10" fill="{eye}" stroke="{INK}" stroke-width="2"/><circle cx="81" cy="64" r="10" fill="{eye}" stroke="{INK}" stroke-width="2"/>
+<circle cx="48" cy="65" r="5" fill="{INK}"/><circle cx="80" cy="65" r="5" fill="{INK}"/>
+<circle cx="50" cy="62.5" r="1.6" fill="#FFFFFF"/><circle cx="82" cy="62.5" r="1.6" fill="#FFFFFF"/>
+<path d="M24 46 L62 58 L60 52 L28 40 Z M104 46 L66 58 L68 52 L100 40 Z" fill="{dark}" stroke="{INK}" stroke-width="2" stroke-linejoin="round"/>
+<path d="M58 70 L70 70 L64 88 Z" fill="{beak}" stroke="{INK}" stroke-width="2.2" stroke-linejoin="round"/>'''
+
+def gator_art(skin='#4E8B3A', dark='#2F5E22', belly='#D9D29A', gum='#C2394A', eye='#F2C230'):
+    # Side profile facing right, jaws open.
+    return f'''
+<g stroke="{INK}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">
+  <path d="M6 70 Q8 44 34 38 L50 30 Q60 26 66 34 L120 46 Q124 50 120 56 L66 62 L34 72 Z" fill="{skin}"/>
+  <path d="M34 72 L66 66 L118 74 Q122 80 116 84 L60 90 Q30 96 10 88 Q4 80 6 70 Z" fill="{belly}"/>
+</g>
+<path d="M66 62 L120 56 L118 74 L66 66 Z" fill="{gum}" stroke="{INK}" stroke-width="2" stroke-linejoin="round"/>
+<path d="M70 61 L72 66 L75 60.6 L77 65.6 L80 60.2 L82 65.2 L85 59.8 L87 64.8 L90 59.4 L92 64.4 L95 59 L97 64 L100 58.6 L102 63.6 L105 58.2 L107 63.2 L110 57.8 L112 62.6 L116 57 Z" fill="#FFFFFF" stroke="{INK}" stroke-width=".9" stroke-linejoin="round"/>
+<path d="M70 66.6 L72 62.4 L75 67 L77 62.8 L80 67.4 L82 63.2 L85 67.8 L87 63.6 L90 68.2 L92 64 L95 68.6 L97 64.4 L100 69 L102 64.8 L105 69.4 L107 65.2 L110 69.8 L112 65.6 L116 70.4 Z" fill="#FFFFFF" stroke="{INK}" stroke-width=".9" stroke-linejoin="round"/>
+<path d="M18 52 L24 46 M28 46 L34 42 M40 40 L44 36 M14 64 L20 60 M26 58 L32 54" stroke="{dark}" stroke-width="3" stroke-linecap="round"/>
+<path d="M50 30 Q58 22 66 30 L64 38 L50 36 Z" fill="{dark}" stroke="{INK}" stroke-width="2.2" stroke-linejoin="round"/>
+<path d="M52 33 L64 33 L61 37 L54 36.4 Z" fill="{eye}"/><path d="M57 33 V37" stroke="{INK}" stroke-width="1.6"/>
+<path d="M48 29 L66 31 L66 28 L50 26 Z" fill="{INK}"/>
+<circle cx="114" cy="48" r="1.8" fill="{INK}"/>
+<path d="M30 84 Q50 86 70 82 M24 78 Q44 80 62 76" fill="none" stroke="#B5AD74" stroke-width="1.6" stroke-linecap="round"/>'''
+
+def bulldog_art(fur='#C9A27A', dark='#8E6A45', light='#E6CDAE', muzzle='#F1E2CC', collar='#1A1A1F', spike='#D8DEE6', eye='#3A2414'):
+    return f'''
+<g stroke="{INK}" stroke-width="2.6" stroke-linejoin="round">
+  <path d="M28 40 Q14 36 12 50 Q20 52 30 58 Z" fill="{dark}"/><path d="M100 40 Q114 36 116 50 Q108 52 98 58 Z" fill="{dark}"/>
+  <path d="M64 24 Q94 24 102 44 Q110 64 106 84 Q102 104 64 108 Q26 104 22 84 Q18 64 26 44 Q34 24 64 24 Z" fill="{fur}"/>
+  <path d="M18 104 Q64 126 110 104 L110 116 Q64 136 18 116 Z" fill="{collar}"/>
+</g>
+<path d="M30 110 L34 102 L38 112 Z M50 116 L54 107 L58 117 Z M70 117 L74 107 L78 116 Z M90 112 L94 102 L98 110 Z" fill="{spike}" stroke="{INK}" stroke-width="1.4" stroke-linejoin="round"/>
+<path d="M50 34 Q64 40 78 34 M48 42 Q64 48 80 42" fill="none" stroke="{dark}" stroke-width="2.4" stroke-linecap="round"/>
+<path d="M24 60 Q20 80 28 96 Q36 104 44 104 Q34 88 34 72 Z" fill="{dark}" opacity=".6"/>
+<path d="M34 78 Q34 64 52 66 Q64 70 76 66 Q94 64 94 78 Q94 100 64 102 Q34 100 34 78 Z" fill="{muzzle}" stroke="{INK}" stroke-width="2.2"/>
+<path d="M54 66 Q64 60 74 66 Q72 74 64 75 Q56 74 54 66 Z" fill="{INK}"/>
+<path d="M64 75 V80 M44 82 Q64 74 84 82 Q82 96 64 97 Q46 96 44 82 Z" fill="{INK}" stroke="{INK}" stroke-width="2" stroke-linejoin="round"/>
+<path d="M48 84 L51 78 L54 84 Z M74 84 L77 78 L80 84 Z" fill="#FFFFFF"/>
+<path d="M34 80 Q30 92 40 98 M94 80 Q98 92 88 98" fill="none" stroke="{dark}" stroke-width="2" stroke-linecap="round"/>
+{eyes((44, 54), (84, 54), eye)}'''
+
+def skull_art(bone='#F1EDE4', shade='#C9C1B0', glow='#FF4D2E', dark='#14100C'):
+    return f'''
+<g stroke="{INK}" stroke-width="2.6" stroke-linejoin="round">
+  <path d="M64 12 Q100 12 108 44 Q112 64 100 76 L98 92 Q96 100 88 100 L86 112 H42 L40 100 Q32 100 30 92 L28 76 Q16 64 20 44 Q28 12 64 12 Z" fill="{bone}"/>
+</g>
+<path d="M21 46 Q20 64 30 76 L32 92 Q34 98 40 99 Q36 84 36 70 Q30 58 30 44 Q30 30 40 22 Q24 28 21 46 Z" fill="{shade}"/>
+<path d="M30 54 Q32 40 48 42 Q60 46 58 60 Q56 74 44 74 Q32 72 30 54 Z" fill="{dark}" stroke="{INK}" stroke-width="2"/>
+<path d="M98 54 Q96 40 80 42 Q68 46 70 60 Q72 74 84 74 Q96 72 98 54 Z" fill="{dark}" stroke="{INK}" stroke-width="2"/>
+<path d="M38 54 L52 58 L50 63 L40 61 Z M90 54 L76 58 L78 63 L88 61 Z" fill="{glow}"/>
+<path d="M64 74 L58 88 L70 88 Z" fill="{dark}"/>
+<path d="M44 100 V112 M54 100 V112 M64 100 V112 M74 100 V112 M84 100 V112" stroke="{INK}" stroke-width="2.2"/>
+<path d="M42 100 H86" stroke="{INK}" stroke-width="2.2"/>
+<path d="M78 20 L72 30 L80 34" fill="none" stroke="{shade}" stroke-width="2" stroke-linecap="round"/>'''
+
+def unicorn_art(coat='#F5F2FB', shade='#D6CFE6', mane1='#8B5CF6', mane2='#EC4899', mane3='#22D3EE', horn='#F2C14E', eye='#6D28D9'):
+    # Side profile facing right, like a charging horse with a gold horn.
+    return f'''
+<g stroke="{INK}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">
+  <path d="M30 120 Q26 84 40 60 Q50 40 66 30 L74 22 L82 30 Q100 38 112 58 Q120 70 116 80 Q110 86 100 82 L88 76 Q80 74 76 82 L70 120 Z" fill="{coat}"/>
+  <path d="M74 24 L96 2 L84 32 Z" fill="{horn}"/>
+</g>
+<path d="M78 22 L90 12 M80 27 L92 15" stroke="#C99A2E" stroke-width="2" stroke-linecap="round"/>
+<path d="M66 30 Q50 32 38 46 Q26 62 22 84 Q16 104 18 120 L30 120 Q30 92 40 72 Q50 52 70 40 Z" fill="{mane1}" stroke="{INK}" stroke-width="2.4" stroke-linejoin="round"/>
+<path d="M60 36 Q44 46 36 64 Q30 80 28 100 L34 100 Q36 82 44 66 Q52 52 66 42 Z" fill="{mane2}"/>
+<path d="M54 44 Q44 56 40 72 Q36 86 36 98 L40 98 Q42 84 46 72 Q50 60 60 50 Z" fill="{mane3}"/>
+<path d="M68 26 L60 14 L74 22 Z" fill="{coat}" stroke="{INK}" stroke-width="2.2" stroke-linejoin="round"/>
+<path d="M100 82 Q110 86 116 80 Q118 72 112 66 Q104 74 100 82 Z" fill="{shade}"/>
+<circle cx="111" cy="72" r="2" fill="{INK}"/>
+<path d="M82 46 L98 50 L95 55 L85 53 Z" fill="{INK}"/><path d="M86 49 L94 51 L92.6 53 L87 52 Z" fill="{eye}"/>
+<path d="M80 41 L100 46 L99 49 L81 45 Z" fill="{INK}"/>
+<path d="M104 82 Q106 88 100 90" fill="none" stroke="{INK}" stroke-width="2" stroke-linecap="round"/>'''
+
+MASCOTS += [('tiger', 'Tiger', tiger_art), ('robot', 'Robot', robot_art), ('rhino', 'Rhino', rhino_art), ('owl', 'Owl', owl_art),
+            ('gator', 'Gator', gator_art), ('bulldog', 'Bulldog', bulldog_art), ('skull', 'Skull', skull_art), ('unicorn', 'Unicorn', unicorn_art)]
