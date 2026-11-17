@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone, timedelta
 
 SEASON = 2026
@@ -60,13 +61,24 @@ def main():
     weeks = list(range(week, max(week, LAST_WEEK) + 1))
     past = list(range(1, week))
     if not a.skip_download:
+        fetch(ESPN_SCHED, P("schedule.json"))
+    # Sleeper keeps the old week number until midweek. Once every game of this week is over
+    # (last kickoff plus about 4 hours), count its stats in the season too.
+    week_kicks = []
+    for x in json.load(open(P("schedule.json"))).get("settings", {}).get("proTeams", []):
+        for g in (x.get("proGamesByScoringPeriod") or {}).get(str(week)) or []:
+            if g.get("date"):
+                week_kicks.append(g["date"])
+    week_done = bool(week_kicks) and max(week_kicks) + 4.5 * 3600 * 1000 < time.time() * 1000
+    if week_done:
+        past = list(range(1, week + 1))
+    if not a.skip_download:
         fetch(SLEEPER + "/v1/players/nfl", P("players.json"))
-        for w in weeks + past:
+        for w in sorted(set(weeks + past)):
             fetch(SLEEPER + "/projections/nfl/%d/%d?season_type=regular&%s" % (SEASON, w, POSITIONS), P("proj_w%d.json" % w))
         for w in past:
             fetch(SLEEPER + "/stats/nfl/%d/%d?season_type=regular&%s" % (SEASON, w, POSITIONS), P("stats_w%d.json" % w))
         fetch(SLEEPER + "/v1/players/nfl/trending/add?lookback_hours=72&limit=60", P("trending.json"))
-        fetch(ESPN_SCHED, P("schedule.json"))
 
     players = json.load(open(P("players.json")))
 

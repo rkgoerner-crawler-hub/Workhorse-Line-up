@@ -4,7 +4,7 @@ name: Refresh player data
 # GitHub runs scheduled jobs in UTC and they can start a few minutes late.
 on:
   schedule:
-    - cron: "17 10,16,22 * * *"   # every day: about 6 AM, noon and 6 PM Eastern
+    - cron: "23 */2 * * *"        # every 2 hours (GitHub sometimes runs these late or skips one)
     - cron: "41 15 * * 0"         # Sunday about 11:40 AM Eastern, after inactives for the 1 PM games
     - cron: "56 18 * * 0"         # Sunday about 2:55 PM Eastern, before the late games
     - cron: "52 22 * * 0,1,4"     # Sun/Mon/Thu about 6:50 PM Eastern, before night games
