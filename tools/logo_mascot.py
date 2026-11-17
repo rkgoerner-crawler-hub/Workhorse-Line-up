@@ -1,0 +1,46 @@
+# A serious, hard-working horse head in a sports-logo style. Front view, brow down, nostrils flared,
+# breath puffing out. The blaze between the eyes and nose is a football with laces.
+def mascot(tile, base='#7B3F1A', shadow='#55290E', light='#9C5A2C', ball='#A65E2E', mane='#1F120A',
+           ink='#160B04', blaze='#F1E6D3', steam='#FFFFFF', size=128, tile_shape=True):
+    bg = f'<rect width="128" height="128" rx="28" fill="{tile}"/>' if tile_shape else ''
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="{size}" height="{size}">
+{bg}
+<g stroke="{ink}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">
+  <!-- mane whipping back on the right -->
+  <path d="M84 30 L104 22 L96 34 L116 36 L100 46 L114 54 L97 58 L106 70 L90 66 Z" fill="{mane}"/>
+  <!-- ears, pinned forward -->
+  <path d="M46 34 L37 6 L59 27 Z" fill="{base}"/>
+  <path d="M82 34 L91 6 L69 27 Z" fill="{base}"/>
+  <!-- head -->
+  <path d="M64 24 L47 28 L38 41 L34 55 L39 71 L47 87 L45 101 Q45 117 64 121 Q83 117 83 101 L81 87 L89 71 L94 55 L90 41 L81 28 Z" fill="{base}"/>
+</g>
+<!-- inner ears -->
+<path d="M46.5 29 L41.5 13.5 L54 26 Z" fill="{shadow}"/><path d="M81.5 29 L86.5 13.5 L74 26 Z" fill="{shadow}"/>
+<!-- shading: shadow down the left cheek, light down the right -->
+<path d="M38.5 42 L35.5 55 L40.5 70 L48.5 86 L53 85 L47.5 68 L45 52 Z" fill="{shadow}"/>
+<path d="M89.5 42 L92.5 55 L87.5 70 L80 84 L77 82 L83 67 L85.5 52 Z" fill="{light}"/>
+<!-- cheek muscle lines -->
+<path d="M44 74 Q50 80 50 88" fill="none" stroke="{ink}" stroke-width="1.8" stroke-linecap="round" opacity=".7"/>
+<path d="M84 74 Q78 80 78 88" fill="none" stroke="{ink}" stroke-width="1.8" stroke-linecap="round" opacity=".7"/>
+<!-- muzzle -->
+<path d="M46.5 98 Q46 116 64 119.5 Q82 116 81.5 98 Q73 92 64 92 Q55 92 46.5 98 Z" fill="{shadow}"/>
+<!-- white blaze down the face -->
+<path d="M64 38 C67.5 50 66.5 70 69.5 92 Q64 95.5 58.5 92 C61.5 70 60.5 50 64 38 Z" fill="{blaze}"/>
+<!-- forelock over the brow -->
+<path d="M50 31 L64 17 L62 29 L76 20 L71 33 L80 31 L68 41 L58 37 Z" fill="{mane}" stroke="{ink}" stroke-width="2.2" stroke-linejoin="round"/>
+<!-- eyes under a heavy, angled brow -->
+<path d="M40 50.5 L55.5 55.5 L52 60.5 L42.5 58 Z" fill="{ink}"/>
+<path d="M88 50.5 L72.5 55.5 L76 60.5 L85.5 58 Z" fill="{ink}"/>
+<path d="M44.5 55.6 L51.5 57.6 L49.8 59.2 L45.4 58 Z" fill="#E9B44C"/><path d="M83.5 55.6 L76.5 57.6 L78.2 59.2 L82.6 58 Z" fill="#E9B44C"/>
+<circle cx="48.6" cy="57.4" r="1.1" fill="{ink}"/><circle cx="79.4" cy="57.4" r="1.1" fill="{ink}"/>
+<path d="M37 47 L57.5 52.5 L56 55.5 L38.5 50.5 Z" fill="{mane}"/><path d="M91 47 L70.5 52.5 L72 55.5 L89.5 50.5 Z" fill="{mane}"/>
+<!-- flared nostrils and a set jaw -->
+<path d="M53.5 108 Q47.5 101 53 96.5 Q58.5 99 58 107 Z" fill="{ink}"/>
+<path d="M74.5 108 Q80.5 101 75 96.5 Q69.5 99 70 107 Z" fill="{ink}"/>
+<path d="M55 114.5 Q64 117.5 73 114.5" fill="none" stroke="{ink}" stroke-width="2" stroke-linecap="round"/>
+<!-- breath puffing out -->
+<g fill="none" stroke="{steam}" stroke-width="2.4" stroke-linecap="round" opacity=".9">
+  <path d="M43 106 Q36 104 33 108"/><path d="M41 113 Q32 113 27 118"/><path d="M38 99.5 Q32 97 28 99"/>
+  <path d="M85 106 Q92 104 95 108"/><path d="M87 113 Q96 113 101 118"/><path d="M90 99.5 Q96 97 100 99"/>
+</g>
+</svg>'''

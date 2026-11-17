@@ -4,19 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Workhorse Lineup</title>
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#EEF0F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B1020" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-title" content="Workhorse">
 <meta name="description" content="Lineup, waiver, trade and FAAB help scored for your own ESPN or Sleeper fantasy football league.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
 /* Layout: one narrow column built for a phone. Sticky tab bar, then per-tab panels:
    lineup (scoreboard, slot rows, flags, bye strip), roster editor, waiver ranking, trade analyzer, settings. */
 :root {
-  --bg: #ECEFF2;
+  --bg: #EEF0F5;
   --surface: #FFFFFF;
-  --surface-2: #E2E7EC;
-  --ink: #131D26;
-  --muted: #56636F;
-  --line: #CDD5DC;
-  --accent: #0B5CAD;
+  --surface-2: #E1E5EE;
+  --ink: #121A2E;
+  --muted: #535D73;
+  --line: #CCD2DF;
+  --accent: #C2410C;
   --on-accent: #FFFFFF;
   --ok: #17803D;
   --ok-bg: #DDF1E4;
@@ -30,14 +37,14 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0E151B;
-    --surface: #16202A;
-    --surface-2: #1F2C38;
-    --ink: #E6EDF2;
-    --muted: #8FA0AD;
-    --line: #2A3947;
-    --accent: #5DA9EC;
-    --on-accent: #08131D;
+    --bg: #0B1020;
+    --surface: #141B30;
+    --surface-2: #1D2640;
+    --ink: #E7EBF4;
+    --muted: #8E99B3;
+    --line: #28324D;
+    --accent: #FB8A4C;
+    --on-accent: #1A0A02;
     --ok: #52C47F;
     --ok-bg: #17382A;
     --warn: #E8A93F;
@@ -48,14 +55,14 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0E151B;
-  --surface: #16202A;
-  --surface-2: #1F2C38;
-  --ink: #E6EDF2;
-  --muted: #8FA0AD;
-  --line: #2A3947;
-  --accent: #5DA9EC;
-  --on-accent: #08131D;
+  --bg: #0B1020;
+  --surface: #141B30;
+  --surface-2: #1D2640;
+  --ink: #E7EBF4;
+  --muted: #8E99B3;
+  --line: #28324D;
+  --accent: #FB8A4C;
+  --on-accent: #1A0A02;
   --ok: #52C47F;
   --ok-bg: #17382A;
   --warn: #E8A93F;
@@ -96,6 +103,8 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   text-transform: uppercase;
   color: var(--muted);
 }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand .logo { width: clamp(52px, 14vw, 68px); height: auto; flex: none; border-radius: 22%; box-shadow: 0 0 0 1px var(--line); }
 h1 {
   font: 800 clamp(36px, 10vw, 52px) / 0.95 var(--f-display);
   letter-spacing: 0.01em;
@@ -135,7 +144,7 @@ h2 {
   border-radius: 8px;
   cursor: pointer;
 }
-.tab[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.tab[aria-selected="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 @media (max-width: 440px) { .tabs { gap: 3px; } .tab { font-size: 11.5px; letter-spacing: -0.01em; padding: 8px 0; border-radius: 7px; } }
 
 [hidden] { display: none !important; }
@@ -380,7 +389,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 <div class="shell" id="setup" hidden>
   <header class="top">
     <div class="eyebrow">Lineup, waiver and trade help for ESPN and Sleeper leagues</div>
-    <h1>Workhorse Lineup</h1>
+    <h1 class="brand"><img class="logo" src="logo.svg" alt="" width="64" height="64">Workhorse Lineup</h1>
   </header>
   <main>
     <section class="panel">
@@ -407,13 +416,13 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 </div>
 
 <div class="shell" id="loading" hidden>
-  <header class="top"><h1>Workhorse Lineup</h1></header>
+  <header class="top"><h1 class="brand"><img class="logo" src="logo.svg" alt="" width="64" height="64">Workhorse Lineup</h1></header>
   <main><section class="panel"><div class="card"><h2 id="loading-title">Loading your league</h2><p class="hint" id="loading-msg">Getting rosters, scoring and projections…</p></div></section></main>
 </div>
 <div class="shell" id="app" hidden>
   <header class="top">
     <div class="eyebrow" id="sub"></div>
-    <h1>Workhorse Lineup</h1>
+    <h1 class="brand"><img class="logo" src="logo.svg" alt="" width="64" height="64">Workhorse Lineup</h1>
   </header>
 
   <nav class="tabs" role="tablist" aria-label="Sections">
