@@ -14,7 +14,7 @@
 <meta name="description" content="Lineup, waiver, trade and FAAB help scored for your own ESPN or Sleeper fantasy football league.">
 <script>
 // Apply the color palette and light/dark choice saved in this browser before anything draws.
-try { const l = JSON.parse(localStorage.getItem('whl:look') || '{}'); if (l.palette && l.palette !== 'blitz') document.documentElement.dataset.palette = l.palette; if (l.mode === 'light' || l.mode === 'dark') document.documentElement.dataset.theme = l.mode; } catch (e) {}
+try { const l = JSON.parse(localStorage.getItem('whl:look') || '{}'); if (l.palette && l.palette !== 'blitz') document.documentElement.dataset.palette = l.palette.startsWith('team:') ? 'team' : l.palette; if (l.mode === 'light' || l.mode === 'dark') document.documentElement.dataset.theme = l.mode; if (l.css && String(l.palette).startsWith('team:')) { const st = document.createElement('style'); st.id = 'team-style'; st.textContent = l.css; document.head.appendChild(st); } } catch (e) {}
 </script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
@@ -250,6 +250,11 @@ header.top .eyebrow { color: rgba(255, 255, 255, 0.82); }
 .swatch .sw { height: 38px; border-radius: 8px; position: relative; overflow: hidden; }
 .swatch .sw i { position: absolute; right: 8px; top: 9px; width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.9); }
 .swatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.teamsw-group { font: 500 11.5px var(--f-data); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 12px 0 6px; }
+.teamsw { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+.teamsw .swatch { padding: 6px; gap: 6px; font-size: 13px; border-radius: 10px; }
+.teamsw .swatch .sw { height: 26px; border-radius: 6px; }
+.teamsw .swatch .sw i { width: 14px; height: 14px; top: 6px; right: 6px; }
 
 * { box-sizing: border-box; }
 body {
@@ -833,6 +838,10 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
         <h2>Look</h2>
         <p class="hint">Pick your colors. This is saved on this device only, so everyone in your league can choose their own.</p>
         <div class="swatches" id="look-palettes" role="group" aria-label="Color palette"></div>
+        <details class="how" id="look-teams-wrap"><summary>Team colors</summary>
+          <p class="hint" style="margin:8px 0 10px">Match your favorite NFL team's colors, listed by city.</p>
+          <div id="look-teams"></div>
+        </details>
         <div class="chips" id="look-mode" role="group" aria-label="Light or dark"></div>
       </div>
 
@@ -3220,10 +3229,60 @@ $('#refresh-db').addEventListener('click', () => {
 /* ---------- look (colors) ---------- */
 const PALETTES = [['blitz', 'Blitz', '#1E3FD8', '#3B82F6', '#FF7A1A'], ['volt', 'Volt', '#047857', '#10B981', '#D9FF3F'], ['heat', 'Heat', '#E11D48', '#F97316', '#FFD23F'], ['neon', 'Neon night', '#5B21B6', '#9333EA', '#B6F23B'], ['primetime', 'Prime time', '#14213D', '#24386B', '#FF7A1A']];
 const LOOK_MODES = [['auto', 'Match my device'], ['light', 'Light'], ['dark', 'Dark']];
+// NFL team colors by city (colors only: no team names or logos). [key, label, primary, secondary]
+const TEAM_COLORS = [
+  ['AFC East', [['buf', 'Buffalo', '#00338D', '#C60C30'], ['mia', 'Miami', '#008E97', '#FC4C02'], ['ne', 'New England', '#002244', '#C60C30'], ['nyj', 'New York (green)', '#125740', '#FFFFFF']]],
+  ['AFC North', [['bal', 'Baltimore', '#241773', '#9E7C0C'], ['cin', 'Cincinnati', '#FB4F14', '#000000'], ['cle', 'Cleveland', '#311D00', '#FF3C00'], ['pit', 'Pittsburgh', '#101820', '#FFB612']]],
+  ['AFC South', [['hou', 'Houston', '#03202F', '#A71930'], ['ind', 'Indianapolis', '#002C5F', '#A2AAAD'], ['jax', 'Jacksonville', '#006778', '#D7A22A'], ['ten', 'Tennessee', '#0C2340', '#4B92DB']]],
+  ['AFC West', [['den', 'Denver', '#FB4F14', '#002244'], ['kc', 'Kansas City', '#E31837', '#FFB81C'], ['lv', 'Las Vegas', '#000000', '#A5ACAF'], ['lac', 'Los Angeles (powder blue)', '#0080C6', '#FFC20E']]],
+  ['NFC East', [['dal', 'Dallas', '#003594', '#869397'], ['nyg', 'New York (blue)', '#0B2265', '#A71930'], ['phi', 'Philadelphia', '#004C54', '#A5ACAF'], ['was', 'Washington', '#5A1414', '#FFB612']]],
+  ['NFC North', [['chi', 'Chicago', '#0B162A', '#C83803'], ['det', 'Detroit', '#0076B6', '#B0B7BC'], ['gb', 'Green Bay', '#203731', '#FFB612'], ['min', 'Minnesota', '#4F2683', '#FFC62F']]],
+  ['NFC South', [['atl', 'Atlanta', '#A71930', '#000000'], ['car', 'Carolina', '#0085CA', '#101820'], ['no', 'New Orleans', '#101820', '#D3BC8D'], ['tb', 'Tampa Bay', '#D50A0A', '#FF7900']]],
+  ['NFC West', [['ari', 'Arizona', '#97233F', '#FFB612'], ['lar', 'Los Angeles (blue & gold)', '#003594', '#FFA300'], ['sf', 'San Francisco', '#AA0000', '#B3995D'], ['sea', 'Seattle', '#002244', '#69BE28']]]
+];
+const TEAM_BY_KEY = Object.fromEntries(TEAM_COLORS.flatMap(([, list]) => list.map(t => [t[0], t])));
+// Small color helpers for building a full palette from a team's two colors.
+const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const rgb2hex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('').toUpperCase();
+const mix = (a, b, t) => rgb2hex(hex2rgb(a).map((v, i) => v + (hex2rgb(b)[i] - v) * t));
+const lum = h => { const c = hex2rgb(h).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const sat = h => { const c = hex2rgb(h), mx = Math.max(...c), mn = Math.min(...c); return mx ? (mx - mn) / mx : 0; };
+function towards(c, target, bg, ratio) { let t = 0, x = c; while (contrast(x, bg) < ratio && t < 1) { t += 0.05; x = mix(c, target, t); } return x; }
+function teamPalette(primary, secondary) {
+  const darkPrimary = lum(primary) < 0.03;
+  const band1 = darkPrimary ? primary : mix(primary, '#000000', 0.28), band2 = darkPrimary ? mix(primary, '#FFFFFF', 0.2) : primary;
+  // Text color: the more colorful of the two, darkened (light mode) or lightened (dark mode) until it reads clearly.
+  const base = sat(primary) >= 0.35 || sat(secondary) < 0.35 ? primary : secondary;
+  const L = { bg: mix(primary, '#FFFFFF', 0.93), surface: '#FFFFFF', 'surface-2': mix(primary, '#FFFFFF', 0.86), ink: mix(primary, '#05070A', 0.86), muted: mix(primary, '#5A606C', 0.82), line: mix(primary, '#FFFFFF', 0.78) };
+  const D = { bg: mix(primary, '#05070C', 0.88), surface: mix(primary, '#0B0F18', 0.82), 'surface-2': mix(primary, '#121826', 0.74), ink: '#ECEFF5', muted: '#9AA3B5', line: mix(primary, '#1E2638', 0.68) };
+  L.accent = towards(base, '#000000', L.bg, 4.6); L['on-accent'] = '#FFFFFF';
+  D.accent = towards(base, '#FFFFFF', D.surface, 4.6); D['on-accent'] = '#0A0A0A';
+  // Pop color for the selected tab: the second team color, or the first if the second would not stand out.
+  let pop = secondary;
+  if (contrast(pop, band2) < 1.6 && sat(pop) < 0.3 && contrast(primary, '#FFFFFF') > 1.5) pop = '#FFFFFF';   // a bright second color still stands out by hue
+  const popDark = contrast(pop, D.surface) < 2 ? (contrast(primary, D.surface) >= 2 ? primary : '#FFFFFF') : pop;
+  const popLight = contrast(pop, L.surface) < 1.4 ? primary : pop;
+  const onPop = p => (contrast(p, '#FFFFFF') >= 3 ? '#FFFFFF' : '#0A0A0A');
+  const vars = (t, p) => Object.entries(t).map(([k, v]) => `--${k}:${v};`).join('') + `--band-1:${band1};--band-2:${band2};--pop:${p};--on-pop:${onPop(p)};--logo-tile:${band1};`;
+  const lightCss = vars(L, popLight), darkCss = vars(D, popDark);
+  return `:root[data-palette="team"]{${lightCss}}@media (prefers-color-scheme: dark){:root[data-palette="team"]:not([data-theme="light"]){${darkCss}}}:root[data-palette="team"][data-theme="dark"]{${darkCss}}`;
+}
 function getLook() { try { return JSON.parse(localStorage.getItem('whl:look') || '{}'); } catch (e) { return {}; } }
 function applyLook(look) {
   const el = document.documentElement;
-  if (look.palette && look.palette !== 'blitz') el.dataset.palette = look.palette; else delete el.dataset.palette;
+  const team = String(look.palette || '').startsWith('team:') ? TEAM_BY_KEY[look.palette.slice(5)] : null;
+  let st = document.getElementById('team-style');
+  if (team) {
+    look.css = teamPalette(team[2], team[3]);
+    if (!st) { st = document.createElement('style'); st.id = 'team-style'; document.head.appendChild(st); }
+    st.textContent = look.css;
+    el.dataset.palette = 'team';
+  } else {
+    delete look.css;
+    if (st) st.remove();
+    if (look.palette && look.palette !== 'blitz') el.dataset.palette = look.palette; else delete el.dataset.palette;
+  }
   if (look.mode === 'light' || look.mode === 'dark') el.dataset.theme = look.mode; else delete el.dataset.theme;
   try { localStorage.setItem('whl:look', JSON.stringify(look)); } catch (e) {}
   renderLook();
@@ -3232,9 +3291,13 @@ function renderLook() {
   const look = getLook(), pal = look.palette || 'blitz', mode = look.mode || 'auto';
   $('#look-palettes').innerHTML = PALETTES.map(([k, name, b1, b2, pop]) =>
     `<button class="swatch" type="button" data-palette="${k}" aria-pressed="${pal === k}"><span class="sw" style="background:linear-gradient(120deg,${b1},${b2})"><i style="background:${pop}"></i></span>${esc(name)}</button>`).join('');
+  $('#look-teams').innerHTML = TEAM_COLORS.map(([group, list]) => `<div class="teamsw-group">${group}</div><div class="teamsw">${list.map(([k, name, p1, p2]) =>
+    `<button class="swatch" type="button" data-palette="team:${k}" aria-pressed="${pal === 'team:' + k}"><span class="sw" style="background:linear-gradient(120deg,${lum(p1) < 0.03 ? p1 : mix(p1, '#000000', 0.28)},${lum(p1) < 0.03 ? mix(p1, '#FFFFFF', 0.2) : p1})"><i style="background:${p2}"></i></span>${esc(name)}</button>`).join('')}</div>`).join('');
+  if (pal.startsWith('team:')) $('#look-teams-wrap').open = true;
   $('#look-mode').innerHTML = LOOK_MODES.map(([k, l]) => `<button class="chip" type="button" data-mode="${k}" aria-pressed="${mode === k}">${l}</button>`).join('');
 }
 $('#look-palettes').addEventListener('click', e => { const b = e.target.closest('[data-palette]'); if (b) applyLook({ ...getLook(), palette: b.dataset.palette }); });
+$('#look-teams').addEventListener('click', e => { const b = e.target.closest('[data-palette]'); if (b) applyLook({ ...getLook(), palette: b.dataset.palette }); });
 $('#look-mode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) applyLook({ ...getLook(), mode: b.dataset.mode }); });
 renderLook();
 
