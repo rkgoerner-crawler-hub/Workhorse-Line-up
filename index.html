@@ -8,22 +8,26 @@
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#EEF0F5" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0B1020" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#1E3FD8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1E3FD8" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-title" content="Workhorse">
 <meta name="description" content="Lineup, waiver, trade and FAAB help scored for your own ESPN or Sleeper fantasy football league.">
+<script>
+// Apply the color palette and light/dark choice saved in this browser before anything draws.
+try { const l = JSON.parse(localStorage.getItem('whl:look') || '{}'); if (l.palette && l.palette !== 'blitz') document.documentElement.dataset.palette = l.palette; if (l.mode === 'light' || l.mode === 'dark') document.documentElement.dataset.theme = l.mode; } catch (e) {}
+</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
 /* Layout: one narrow column built for a phone. Sticky tab bar, then per-tab panels:
    lineup (scoreboard, slot rows, flags, bye strip), roster editor, waiver ranking, trade analyzer, settings. */
 :root {
-  --bg: #EEF0F5;
+  --bg: #EFF3FD;
   --surface: #FFFFFF;
-  --surface-2: #E1E5EE;
-  --ink: #121A2E;
-  --muted: #535D73;
-  --line: #CCD2DF;
-  --accent: #C2410C;
+  --surface-2: #DEE6FA;
+  --ink: #0F1733;
+  --muted: #4E5B7E;
+  --line: #C9D4F2;
+  --accent: #1D4ED8;
   --on-accent: #FFFFFF;
   --ok: #17803D;
   --ok-bg: #DDF1E4;
@@ -31,20 +35,25 @@
   --warn-bg: #FBEBC8;
   --bad: #B52E24;
   --bad-bg: #F9DAD6;
+  --band-1: #1E3FD8;
+  --band-2: #3B82F6;
+  --pop: #FF7A1A;
+  --on-pop: #1F0A00;
+  --logo-tile: #1E3A8A;
   --f-display: 'Big Shoulders Display', 'Arial Narrow', Impact, sans-serif;
   --f-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --f-data: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0B1020;
-    --surface: #141B30;
-    --surface-2: #1D2640;
-    --ink: #E7EBF4;
-    --muted: #8E99B3;
-    --line: #28324D;
-    --accent: #FB8A4C;
-    --on-accent: #1A0A02;
+    --bg: #080E24;
+    --surface: #111A38;
+    --surface-2: #1A2550;
+    --ink: #E8EDFB;
+    --muted: #8F9CC4;
+    --line: #26346A;
+    --accent: #7AA7FF;
+    --on-accent: #050B1E;
     --ok: #52C47F;
     --ok-bg: #17382A;
     --warn: #E8A93F;
@@ -55,14 +64,14 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0B1020;
-  --surface: #141B30;
-  --surface-2: #1D2640;
-  --ink: #E7EBF4;
-  --muted: #8E99B3;
-  --line: #28324D;
-  --accent: #FB8A4C;
-  --on-accent: #1A0A02;
+  --bg: #080E24;
+  --surface: #111A38;
+  --surface-2: #1A2550;
+  --ink: #E8EDFB;
+  --muted: #8F9CC4;
+  --line: #26346A;
+  --accent: #7AA7FF;
+  --on-accent: #050B1E;
   --ok: #52C47F;
   --ok-bg: #17382A;
   --warn: #E8A93F;
@@ -71,6 +80,176 @@
   --bad-bg: #432220;
   color-scheme: dark;
 }
+
+/* Color palettes the visitor can pick in Settings (saved in this browser). Blitz is the default above. */
+:root[data-palette="volt"] {
+  --bg: #F0F7F2;
+  --surface: #FFFFFF;
+  --surface-2: #E0EEE5;
+  --ink: #0F1F17;
+  --muted: #4E6357;
+  --line: #C9DDD0;
+  --accent: #047857;
+  --on-accent: #FFFFFF;
+  --band-1: #047857;
+  --band-2: #10B981;
+  --pop: #D9FF3F;
+  --on-pop: #0B2410;
+  --logo-tile: #065F46;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="volt"]:not([data-theme="light"]) {
+  --bg: #07140E;
+  --surface: #0F2219;
+  --surface-2: #173025;
+  --ink: #E6F3EB;
+  --muted: #8DAA99;
+  --line: #21402F;
+  --accent: #34D399;
+  --on-accent: #04140C;
+  }
+}
+:root[data-palette="volt"][data-theme="dark"] {
+  --bg: #07140E;
+  --surface: #0F2219;
+  --surface-2: #173025;
+  --ink: #E6F3EB;
+  --muted: #8DAA99;
+  --line: #21402F;
+  --accent: #34D399;
+  --on-accent: #04140C;
+}
+:root[data-palette="heat"] {
+  --bg: #FFF4EF;
+  --surface: #FFFFFF;
+  --surface-2: #FCE3DA;
+  --ink: #2A0F12;
+  --muted: #74504F;
+  --line: #F2CFC4;
+  --accent: #BE123C;
+  --on-accent: #FFFFFF;
+  --band-1: #E11D48;
+  --band-2: #F97316;
+  --pop: #FFD23F;
+  --on-pop: #2A1500;
+  --logo-tile: #9F1239;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="heat"]:not([data-theme="light"]) {
+  --bg: #1A0A0C;
+  --surface: #2A1215;
+  --surface-2: #3A1A1E;
+  --ink: #FCECE8;
+  --muted: #C59A96;
+  --line: #4D2429;
+  --accent: #FB7185;
+  --on-accent: #22060A;
+  }
+}
+:root[data-palette="heat"][data-theme="dark"] {
+  --bg: #1A0A0C;
+  --surface: #2A1215;
+  --surface-2: #3A1A1E;
+  --ink: #FCECE8;
+  --muted: #C59A96;
+  --line: #4D2429;
+  --accent: #FB7185;
+  --on-accent: #22060A;
+}
+:root[data-palette="neon"] {
+  --bg: #F5F2FD;
+  --surface: #FFFFFF;
+  --surface-2: #E9E2FA;
+  --ink: #1B1033;
+  --muted: #5D5280;
+  --line: #D9CFF3;
+  --accent: #6D28D9;
+  --on-accent: #FFFFFF;
+  --band-1: #5B21B6;
+  --band-2: #9333EA;
+  --pop: #B6F23B;
+  --on-pop: #142200;
+  --logo-tile: #4C1D95;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="neon"]:not([data-theme="light"]) {
+  --bg: #0E0820;
+  --surface: #180F33;
+  --surface-2: #231748;
+  --ink: #EEE9FB;
+  --muted: #A396C9;
+  --line: #33245F;
+  --accent: #B794F6;
+  --on-accent: #12082A;
+  }
+}
+:root[data-palette="neon"][data-theme="dark"] {
+  --bg: #0E0820;
+  --surface: #180F33;
+  --surface-2: #231748;
+  --ink: #EEE9FB;
+  --muted: #A396C9;
+  --line: #33245F;
+  --accent: #B794F6;
+  --on-accent: #12082A;
+}
+:root[data-palette="primetime"] {
+  --bg: #EEF0F5;
+  --surface: #FFFFFF;
+  --surface-2: #E1E5EE;
+  --ink: #121A2E;
+  --muted: #535D73;
+  --line: #CCD2DF;
+  --accent: #C2410C;
+  --on-accent: #FFFFFF;
+  --band-1: #14213D;
+  --band-2: #24386B;
+  --pop: #FF7A1A;
+  --on-pop: #1F0A00;
+  --logo-tile: #0F1A33;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="primetime"]:not([data-theme="light"]) {
+  --bg: #0B1020;
+  --surface: #141B30;
+  --surface-2: #1D2640;
+  --ink: #E7EBF4;
+  --muted: #8E99B3;
+  --line: #28324D;
+  --accent: #FB8A4C;
+  --on-accent: #1A0A02;
+  }
+}
+:root[data-palette="primetime"][data-theme="dark"] {
+  --bg: #0B1020;
+  --surface: #141B30;
+  --surface-2: #1D2640;
+  --ink: #E7EBF4;
+  --muted: #8E99B3;
+  --line: #28324D;
+  --accent: #FB8A4C;
+  --on-accent: #1A0A02;
+}
+
+body { margin: 0; }
+/* Slanted color banner across the top */
+header.top {
+  background: linear-gradient(120deg, var(--band-1), var(--band-2));
+  color: #fff;
+  margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
+  padding: 22px max(16px, env(safe-area-inset-left, 0px)) 30px;
+  clip-path: polygon(0 0, 100% 0, 100% 84%, 0 100%);
+  margin-bottom: 4px;
+}
+header.top .eyebrow { color: rgba(255, 255, 255, 0.82); }
+.wkbars .bar { background: linear-gradient(180deg, var(--band-2), var(--band-1)); }
+.btn.primary { background: linear-gradient(120deg, var(--band-1), var(--band-2)); border-color: var(--band-1); color: #fff; }
+/* Look picker in Settings */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.swatch { display: grid; gap: 8px; padding: 8px; border: 2px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: 600 14px var(--f-body); cursor: pointer; text-align: left; }
+.swatch .sw { height: 38px; border-radius: 8px; position: relative; overflow: hidden; }
+.swatch .sw i { position: absolute; right: 8px; top: 9px; width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.9); }
+.swatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 
 * { box-sizing: border-box; }
 body {
@@ -104,7 +283,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   color: var(--muted);
 }
 .brand { display: flex; align-items: center; gap: 12px; }
-.brand .logo { width: clamp(52px, 14vw, 68px); height: auto; flex: none; border-radius: 22%; box-shadow: 0 0 0 1px var(--line); }
+.brand .logo { width: clamp(52px, 14vw, 68px); height: auto; flex: none; border-radius: 22%; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); }
 h1 {
   font: 800 clamp(36px, 10vw, 52px) / 0.95 var(--f-display);
   letter-spacing: 0.01em;
@@ -144,7 +323,7 @@ h2 {
   border-radius: 8px;
   cursor: pointer;
 }
-.tab[aria-selected="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.tab[aria-selected="true"] { background: var(--pop); color: var(--on-pop); border-color: var(--pop); }
 @media (max-width: 440px) { .tabs { gap: 3px; } .tab { font-size: 11.5px; letter-spacing: -0.01em; padding: 8px 0; border-radius: 7px; } }
 
 [hidden] { display: none !important; }
@@ -389,7 +568,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 <div class="shell" id="setup" hidden>
   <header class="top">
     <div class="eyebrow">Lineup, waiver and trade help for ESPN and Sleeper leagues</div>
-    <h1 class="brand"><img class="logo" src="logo.svg" alt="" width="64" height="64">Workhorse Lineup</h1>
+    <h1 class="brand"><svg class="logo" viewBox="0 0 128 128" aria-hidden="true" focusable="false"><rect width="128" height="128" rx="28" style="fill:var(--logo-tile)"/><g stroke="#160B04" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"><path d="M84 30 L104 22 L96 34 L116 36 L100 46 L114 54 L97 58 L106 70 L90 66 Z" fill="#1F120A"/><path d="M46 34 L37 6 L59 27 Z" fill="#7B3F1A"/><path d="M82 34 L91 6 L69 27 Z" fill="#7B3F1A"/><path d="M64 24 L47 28 L38 41 L34 55 L39 71 L47 87 L45 101 Q45 117 64 121 Q83 117 83 101 L81 87 L89 71 L94 55 L90 41 L81 28 Z" fill="#7B3F1A"/></g><path d="M46.5 29 L41.5 13.5 L54 26 Z" fill="#55290E"/><path d="M81.5 29 L86.5 13.5 L74 26 Z" fill="#55290E"/><path d="M38.5 42 L35.5 55 L40.5 70 L48.5 86 L53 85 L47.5 68 L45 52 Z" fill="#55290E"/><path d="M89.5 42 L92.5 55 L87.5 70 L80 84 L77 82 L83 67 L85.5 52 Z" fill="#9C5A2C"/><path d="M44 74 Q50 80 50 88" fill="none" stroke="#160B04" stroke-width="1.8" stroke-linecap="round" opacity=".7"/><path d="M84 74 Q78 80 78 88" fill="none" stroke="#160B04" stroke-width="1.8" stroke-linecap="round" opacity=".7"/><path d="M46.5 98 Q46 116 64 119.5 Q82 116 81.5 98 Q73 92 64 92 Q55 92 46.5 98 Z" fill="#55290E"/><path d="M64 38 C67.5 50 66.5 70 69.5 92 Q64 95.5 58.5 92 C61.5 70 60.5 50 64 38 Z" fill="#F1E6D3"/><path d="M50 31 L64 17 L62 29 L76 20 L71 33 L80 31 L68 41 L58 37 Z" fill="#1F120A" stroke="#160B04" stroke-width="2.2" stroke-linejoin="round"/><path d="M40 50.5 L55.5 55.5 L52 60.5 L42.5 58 Z" fill="#160B04"/><path d="M88 50.5 L72.5 55.5 L76 60.5 L85.5 58 Z" fill="#160B04"/><path d="M44.5 55.6 L51.5 57.6 L49.8 59.2 L45.4 58 Z" fill="#E9B44C"/><path d="M83.5 55.6 L76.5 57.6 L78.2 59.2 L82.6 58 Z" fill="#E9B44C"/><circle cx="48.6" cy="57.4" r="1.1" fill="#160B04"/><circle cx="79.4" cy="57.4" r="1.1" fill="#160B04"/><path d="M37 47 L57.5 52.5 L56 55.5 L38.5 50.5 Z" fill="#1F120A"/><path d="M91 47 L70.5 52.5 L72 55.5 L89.5 50.5 Z" fill="#1F120A"/><path d="M53.5 108 Q47.5 101 53 96.5 Q58.5 99 58 107 Z" fill="#160B04"/><path d="M74.5 108 Q80.5 101 75 96.5 Q69.5 99 70 107 Z" fill="#160B04"/><path d="M55 114.5 Q64 117.5 73 114.5" fill="none" stroke="#160B04" stroke-width="2" stroke-linecap="round"/><g fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" opacity=".9"><path d="M43 106 Q36 104 33 108"/><path d="M41 113 Q32 113 27 118"/><path d="M38 99.5 Q32 97 28 99"/><path d="M85 106 Q92 104 95 108"/><path d="M87 113 Q96 113 101 118"/><path d="M90 99.5 Q96 97 100 99"/></g></svg>Workhorse Lineup</h1>
   </header>
   <main>
     <section class="panel">
@@ -416,13 +595,13 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 </div>
 
 <div class="shell" id="loading" hidden>
-  <header class="top"><h1 class="brand"><img class="logo" src="logo.svg" alt="" width="64" height="64">Workhorse Lineup</h1></header>
+  <header class="top"><h1 class="brand"><svg class="logo" viewBox="0 0 128 128" aria-hidden="true" focusable="false"><rect width="128" height="128" rx="28" style="fill:var(--logo-tile)"/><g stroke="#160B04" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"><path d="M84 30 L104 22 L96 34 L116 36 L100 46 L114 54 L97 58 L106 70 L90 66 Z" fill="#1F120A"/><path d="M46 34 L37 6 L59 27 Z" fill="#7B3F1A"/><path d="M82 34 L91 6 L69 27 Z" fill="#7B3F1A"/><path d="M64 24 L47 28 L38 41 L34 55 L39 71 L47 87 L45 101 Q45 117 64 121 Q83 117 83 101 L81 87 L89 71 L94 55 L90 41 L81 28 Z" fill="#7B3F1A"/></g><path d="M46.5 29 L41.5 13.5 L54 26 Z" fill="#55290E"/><path d="M81.5 29 L86.5 13.5 L74 26 Z" fill="#55290E"/><path d="M38.5 42 L35.5 55 L40.5 70 L48.5 86 L53 85 L47.5 68 L45 52 Z" fill="#55290E"/><path d="M89.5 42 L92.5 55 L87.5 70 L80 84 L77 82 L83 67 L85.5 52 Z" fill="#9C5A2C"/><path d="M44 74 Q50 80 50 88" fill="none" stroke="#160B04" stroke-width="1.8" stroke-linecap="round" opacity=".7"/><path d="M84 74 Q78 80 78 88" fill="none" stroke="#160B04" stroke-width="1.8" stroke-linecap="round" opacity=".7"/><path d="M46.5 98 Q46 116 64 119.5 Q82 116 81.5 98 Q73 92 64 92 Q55 92 46.5 98 Z" fill="#55290E"/><path d="M64 38 C67.5 50 66.5 70 69.5 92 Q64 95.5 58.5 92 C61.5 70 60.5 50 64 38 Z" fill="#F1E6D3"/><path d="M50 31 L64 17 L62 29 L76 20 L71 33 L80 31 L68 41 L58 37 Z" fill="#1F120A" stroke="#160B04" stroke-width="2.2" stroke-linejoin="round"/><path d="M40 50.5 L55.5 55.5 L52 60.5 L42.5 58 Z" fill="#160B04"/><path d="M88 50.5 L72.5 55.5 L76 60.5 L85.5 58 Z" fill="#160B04"/><path d="M44.5 55.6 L51.5 57.6 L49.8 59.2 L45.4 58 Z" fill="#E9B44C"/><path d="M83.5 55.6 L76.5 57.6 L78.2 59.2 L82.6 58 Z" fill="#E9B44C"/><circle cx="48.6" cy="57.4" r="1.1" fill="#160B04"/><circle cx="79.4" cy="57.4" r="1.1" fill="#160B04"/><path d="M37 47 L57.5 52.5 L56 55.5 L38.5 50.5 Z" fill="#1F120A"/><path d="M91 47 L70.5 52.5 L72 55.5 L89.5 50.5 Z" fill="#1F120A"/><path d="M53.5 108 Q47.5 101 53 96.5 Q58.5 99 58 107 Z" fill="#160B04"/><path d="M74.5 108 Q80.5 101 75 96.5 Q69.5 99 70 107 Z" fill="#160B04"/><path d="M55 114.5 Q64 117.5 73 114.5" fill="none" stroke="#160B04" stroke-width="2" stroke-linecap="round"/><g fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" opacity=".9"><path d="M43 106 Q36 104 33 108"/><path d="M41 113 Q32 113 27 118"/><path d="M38 99.5 Q32 97 28 99"/><path d="M85 106 Q92 104 95 108"/><path d="M87 113 Q96 113 101 118"/><path d="M90 99.5 Q96 97 100 99"/></g></svg>Workhorse Lineup</h1></header>
   <main><section class="panel"><div class="card"><h2 id="loading-title">Loading your league</h2><p class="hint" id="loading-msg">Getting rosters, scoring and projections…</p></div></section></main>
 </div>
 <div class="shell" id="app" hidden>
   <header class="top">
     <div class="eyebrow" id="sub"></div>
-    <h1 class="brand"><img class="logo" src="logo.svg" alt="" width="64" height="64">Workhorse Lineup</h1>
+    <h1 class="brand"><svg class="logo" viewBox="0 0 128 128" aria-hidden="true" focusable="false"><rect width="128" height="128" rx="28" style="fill:var(--logo-tile)"/><g stroke="#160B04" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"><path d="M84 30 L104 22 L96 34 L116 36 L100 46 L114 54 L97 58 L106 70 L90 66 Z" fill="#1F120A"/><path d="M46 34 L37 6 L59 27 Z" fill="#7B3F1A"/><path d="M82 34 L91 6 L69 27 Z" fill="#7B3F1A"/><path d="M64 24 L47 28 L38 41 L34 55 L39 71 L47 87 L45 101 Q45 117 64 121 Q83 117 83 101 L81 87 L89 71 L94 55 L90 41 L81 28 Z" fill="#7B3F1A"/></g><path d="M46.5 29 L41.5 13.5 L54 26 Z" fill="#55290E"/><path d="M81.5 29 L86.5 13.5 L74 26 Z" fill="#55290E"/><path d="M38.5 42 L35.5 55 L40.5 70 L48.5 86 L53 85 L47.5 68 L45 52 Z" fill="#55290E"/><path d="M89.5 42 L92.5 55 L87.5 70 L80 84 L77 82 L83 67 L85.5 52 Z" fill="#9C5A2C"/><path d="M44 74 Q50 80 50 88" fill="none" stroke="#160B04" stroke-width="1.8" stroke-linecap="round" opacity=".7"/><path d="M84 74 Q78 80 78 88" fill="none" stroke="#160B04" stroke-width="1.8" stroke-linecap="round" opacity=".7"/><path d="M46.5 98 Q46 116 64 119.5 Q82 116 81.5 98 Q73 92 64 92 Q55 92 46.5 98 Z" fill="#55290E"/><path d="M64 38 C67.5 50 66.5 70 69.5 92 Q64 95.5 58.5 92 C61.5 70 60.5 50 64 38 Z" fill="#F1E6D3"/><path d="M50 31 L64 17 L62 29 L76 20 L71 33 L80 31 L68 41 L58 37 Z" fill="#1F120A" stroke="#160B04" stroke-width="2.2" stroke-linejoin="round"/><path d="M40 50.5 L55.5 55.5 L52 60.5 L42.5 58 Z" fill="#160B04"/><path d="M88 50.5 L72.5 55.5 L76 60.5 L85.5 58 Z" fill="#160B04"/><path d="M44.5 55.6 L51.5 57.6 L49.8 59.2 L45.4 58 Z" fill="#E9B44C"/><path d="M83.5 55.6 L76.5 57.6 L78.2 59.2 L82.6 58 Z" fill="#E9B44C"/><circle cx="48.6" cy="57.4" r="1.1" fill="#160B04"/><circle cx="79.4" cy="57.4" r="1.1" fill="#160B04"/><path d="M37 47 L57.5 52.5 L56 55.5 L38.5 50.5 Z" fill="#1F120A"/><path d="M91 47 L70.5 52.5 L72 55.5 L89.5 50.5 Z" fill="#1F120A"/><path d="M53.5 108 Q47.5 101 53 96.5 Q58.5 99 58 107 Z" fill="#160B04"/><path d="M74.5 108 Q80.5 101 75 96.5 Q69.5 99 70 107 Z" fill="#160B04"/><path d="M55 114.5 Q64 117.5 73 114.5" fill="none" stroke="#160B04" stroke-width="2" stroke-linecap="round"/><g fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" opacity=".9"><path d="M43 106 Q36 104 33 108"/><path d="M41 113 Q32 113 27 118"/><path d="M38 99.5 Q32 97 28 99"/><path d="M85 106 Q92 104 95 108"/><path d="M87 113 Q96 113 101 118"/><path d="M90 99.5 Q96 97 100 99"/></g></svg>Workhorse Lineup</h1>
   </header>
 
   <nav class="tabs" role="tablist" aria-label="Sections">
@@ -650,6 +829,13 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
     </section>
 
     <section class="panel" id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+      <div class="card">
+        <h2>Look</h2>
+        <p class="hint">Pick your colors. This is saved on this device only, so everyone in your league can choose their own.</p>
+        <div class="swatches" id="look-palettes" role="group" aria-label="Color palette"></div>
+        <div class="chips" id="look-mode" role="group" aria-label="Light or dark"></div>
+      </div>
+
       <div class="card">
         <h2>Your leagues</h2>
         <div class="teamlist" id="my-leagues"></div>
@@ -3030,6 +3216,27 @@ $('#refresh-db').addEventListener('click', () => {
     ? `Refreshed ${n} players for Week ${s.week}: rest-of-season averages, bye weeks and injury status. Statuses you changed by hand are kept, and league-site projections stay as entered.`
     : 'None of your players are linked to the database.';
 });
+
+/* ---------- look (colors) ---------- */
+const PALETTES = [['blitz', 'Blitz', '#1E3FD8', '#3B82F6', '#FF7A1A'], ['volt', 'Volt', '#047857', '#10B981', '#D9FF3F'], ['heat', 'Heat', '#E11D48', '#F97316', '#FFD23F'], ['neon', 'Neon night', '#5B21B6', '#9333EA', '#B6F23B'], ['primetime', 'Prime time', '#14213D', '#24386B', '#FF7A1A']];
+const LOOK_MODES = [['auto', 'Match my device'], ['light', 'Light'], ['dark', 'Dark']];
+function getLook() { try { return JSON.parse(localStorage.getItem('whl:look') || '{}'); } catch (e) { return {}; } }
+function applyLook(look) {
+  const el = document.documentElement;
+  if (look.palette && look.palette !== 'blitz') el.dataset.palette = look.palette; else delete el.dataset.palette;
+  if (look.mode === 'light' || look.mode === 'dark') el.dataset.theme = look.mode; else delete el.dataset.theme;
+  try { localStorage.setItem('whl:look', JSON.stringify(look)); } catch (e) {}
+  renderLook();
+}
+function renderLook() {
+  const look = getLook(), pal = look.palette || 'blitz', mode = look.mode || 'auto';
+  $('#look-palettes').innerHTML = PALETTES.map(([k, name, b1, b2, pop]) =>
+    `<button class="swatch" type="button" data-palette="${k}" aria-pressed="${pal === k}"><span class="sw" style="background:linear-gradient(120deg,${b1},${b2})"><i style="background:${pop}"></i></span>${esc(name)}</button>`).join('');
+  $('#look-mode').innerHTML = LOOK_MODES.map(([k, l]) => `<button class="chip" type="button" data-mode="${k}" aria-pressed="${mode === k}">${l}</button>`).join('');
+}
+$('#look-palettes').addEventListener('click', e => { const b = e.target.closest('[data-palette]'); if (b) applyLook({ ...getLook(), palette: b.dataset.palette }); });
+$('#look-mode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) applyLook({ ...getLook(), mode: b.dataset.mode }); });
+renderLook();
 
 /* ---------- wiring ---------- */
 const TABS = ['lineup', 'startsit', 'waivers', 'trade', 'league', 'settings'];
