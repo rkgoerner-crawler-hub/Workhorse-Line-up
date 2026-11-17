@@ -3,7 +3,7 @@
 import sys; sys.path.insert(0, '/home/claude/brand')
 from sleek import catmull, path, limb
 LINE_Y, LINE_W = 52, 10.4
-VIEWBOX = '0 0 206 118'
+VIEWBOX = '0 4 206 120'
 BODY = [(76, 41), (90, 35), (112, 38.5), (134, 33), (146, 22), (156, 11), (165, 5), (172, 5.5), (180, 10), (188, 18), (194, 25), (195, 30.5), (190, 34), (182, 33), (174, 30.5), (168, 30), (163, 38), (160, 50), (160, 61), (152, 70), (136, 75), (112, 75.5), (93, 72), (84, 69.5), (74, 63), (69, 53), (70, 45)]
 LIMBS = [
   # front legs: one tucked high, one reaching
@@ -24,7 +24,7 @@ LIMBS = [
   [((40, 50), 4), ((28, 44), 3), ((16, 42), 0.5)],
   [((50, 53), 4), ((38, 58), 2.5), ((26, 59), 0.5)],
 ]
-LEAN = 7   # degrees: the horse pitches forward into the stride, pivoting where the tail meets the rump
+LEAN = 11   # degrees: the horse pitches forward into the stride, pivoting where the tail meets the rump
 def mustang(fill='currentColor'):
     tail = LIMBS[-3:]
     horse = [path(catmull(BODY, closed=True, n=10))] + [limb(s) for s in LIMBS[:-3]]
