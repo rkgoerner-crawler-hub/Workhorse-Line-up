@@ -249,7 +249,7 @@ header.top .eyebrow { color: var(--band-ink-2, rgba(255, 255, 255, 0.82)); }
 :root:not([data-mascot]) .logo .m-horse, :root[data-mascot="horse"] .logo .m-horse, :root[data-mascot="bull"] .logo .m-bull, :root[data-mascot="wolf"] .logo .m-wolf, :root[data-mascot="bear"] .logo .m-bear, :root[data-mascot="hawk"] .logo .m-hawk, :root[data-mascot="shark"] .logo .m-shark, :root[data-mascot="fireball"] .logo .m-fireball { display: inline; }
 /* Underline under the name that runs into a galloping horse */
 .wordmark { display: inline-flex; flex-direction: column; min-width: 0; }
-.streak { display: flex; align-items: flex-end; margin-top: 2px; height: 40px; }
+.streak { display: flex; align-items: flex-end; margin-top: -16px; height: 40px; }
 /* The line slides under the emblem's lowest long speed streak, so it runs straight into the horse. */
 .streak i { flex: 1; height: 2px; border-radius: 1px; background: linear-gradient(90deg, transparent, currentColor 60%); margin-bottom: 13.55px; margin-right: -26.3px; }
 .streak svg { width: 92.8px; height: 40px; flex: none; color: currentColor; }
@@ -306,7 +306,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand .logo { width: clamp(52px, 14vw, 68px); height: auto; flex: none; border-radius: 22%; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); }
 h1 {
-  font: 800 clamp(36px, 10vw, 52px) / 0.95 var(--f-display);
+  font: 800 clamp(30px, 10vw, 52px) / 0.95 var(--f-display);
   letter-spacing: 0.01em;
   text-transform: uppercase;
   margin: 6px 0 0;
@@ -590,7 +590,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 <div class="shell" id="setup" hidden>
   <header class="top">
     <div class="eyebrow">Lineup, waiver and trade help for ESPN and Sleeper leagues</div>
-    <h1 class="brand"><svg class="logo" viewBox="0 0 128 128" aria-hidden="true" focusable="false"><rect width="128" height="128" rx="28" style="fill:var(--logo-tile)"/><use class="m m-horse" href="#m-horse"/><use class="m m-bull" href="#m-bull"/><use class="m m-wolf" href="#m-wolf"/><use class="m m-bear" href="#m-bear"/><use class="m m-hawk" href="#m-hawk"/><use class="m m-shark" href="#m-shark"/><use class="m m-fireball" href="#m-fireball"/></svg><span class="wordmark"><span>Workhorse Lineup</span><span class="streak" aria-hidden="true"><i></i><svg viewBox="0 0 1199 517"><use href="#run-horse"/></svg></span></span></h1>
+    <h1 class="brand"><svg class="logo" viewBox="0 0 128 128" aria-hidden="true" focusable="false"><rect width="128" height="128" rx="28" style="fill:var(--logo-tile)"/><use class="m m-horse" href="#m-horse"/><use class="m m-bull" href="#m-bull"/><use class="m m-wolf" href="#m-wolf"/><use class="m m-bear" href="#m-bear"/><use class="m m-hawk" href="#m-hawk"/><use class="m m-shark" href="#m-shark"/><use class="m m-fireball" href="#m-fireball"/></svg><span class="wordmark"><span>Workhorse<br>Lineup</span><span class="streak" aria-hidden="true"><i></i><svg viewBox="0 0 1199 517"><use href="#run-horse"/></svg></span></span></h1>
   </header>
   <main>
     <section class="panel">
@@ -617,13 +617,13 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 </div>
 
 <div class="shell" id="loading" hidden>
-  <header class="top"><h1 class="brand"><svg class="logo" viewBox="0 0 128 128" aria-hidden="true" focusable="false"><rect width="128" height="128" rx="28" style="fill:var(--logo-tile)"/><use class="m m-horse" href="#m-horse"/><use class="m m-bull" href="#m-bull"/><use class="m m-wolf" href="#m-wolf"/><use class="m m-bear" href="#m-bear"/><use class="m m-hawk" href="#m-hawk"/><use class="m m-shark" href="#m-shark"/><use class="m m-fireball" href="#m-fireball"/></svg><span class="wordmark"><span>Workhorse Lineup</span><span class="streak" aria-hidden="true"><i></i><svg viewBox="0 0 1199 517"><use href="#run-horse"/></svg></span></span></h1></header>
+  <header class="top"><h1 class="brand"><svg class="logo" viewBox="0 0 128 128" aria-hidden="true" focusable="false"><rect width="128" height="128" rx="28" style="fill:var(--logo-tile)"/><use class="m m-horse" href="#m-horse"/><use class="m m-bull" href="#m-bull"/><use class="m m-wolf" href="#m-wolf"/><use class="m m-bear" href="#m-bear"/><use class="m m-hawk" href="#m-hawk"/><use class="m m-shark" href="#m-shark"/><use class="m m-fireball" href="#m-fireball"/></svg><span class="wordmark"><span>Workhorse<br>Lineup</span><span class="streak" aria-hidden="true"><i></i><svg viewBox="0 0 1199 517"><use href="#run-horse"/></svg></span></span></h1></header>
   <main><section class="panel"><div class="card"><h2 id="loading-title">Loading your league</h2><p class="hint" id="loading-msg">Getting rosters, scoring and projections…</p></div></section></main>
 </div>
 <div class="shell" id="app" hidden>
   <header class="top">
     <div class="eyebrow" id="sub"></div>
-    <h1 class="brand"><svg class="logo" viewBox="0 0 128 128" aria-hidden="true" focusable="false"><rect width="128" height="128" rx="28" style="fill:var(--logo-tile)"/><use class="m m-horse" href="#m-horse"/><use class="m m-bull" href="#m-bull"/><use class="m m-wolf" href="#m-wolf"/><use class="m m-bear" href="#m-bear"/><use class="m m-hawk" href="#m-hawk"/><use class="m m-shark" href="#m-shark"/><use class="m m-fireball" href="#m-fireball"/></svg><span class="wordmark"><span>Workhorse Lineup</span><span class="streak" aria-hidden="true"><i></i><svg viewBox="0 0 1199 517"><use href="#run-horse"/></svg></span></span></h1>
+    <h1 class="brand"><svg class="logo" viewBox="0 0 128 128" aria-hidden="true" focusable="false"><rect width="128" height="128" rx="28" style="fill:var(--logo-tile)"/><use class="m m-horse" href="#m-horse"/><use class="m m-bull" href="#m-bull"/><use class="m m-wolf" href="#m-wolf"/><use class="m m-bear" href="#m-bear"/><use class="m m-hawk" href="#m-hawk"/><use class="m m-shark" href="#m-shark"/><use class="m m-fireball" href="#m-fireball"/></svg><span class="wordmark"><span>Workhorse<br>Lineup</span><span class="streak" aria-hidden="true"><i></i><svg viewBox="0 0 1199 517"><use href="#run-horse"/></svg></span></span></h1>
   </header>
 
   <nav class="tabs" role="tablist" aria-label="Sections">
