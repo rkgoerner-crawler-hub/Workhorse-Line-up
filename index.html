@@ -235,13 +235,13 @@ body { margin: 0; }
 /* Slanted color banner across the top */
 header.top {
   background: linear-gradient(120deg, var(--band-1), var(--band-2));
-  color: #fff;
+  color: var(--band-ink, #fff);
   margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
   padding: 22px max(16px, env(safe-area-inset-left, 0px)) 30px;
   clip-path: polygon(0 0, 100% 0, 100% 84%, 0 100%);
   margin-bottom: 4px;
 }
-header.top .eyebrow { color: rgba(255, 255, 255, 0.82); }
+header.top .eyebrow { color: var(--band-ink-2, rgba(255, 255, 255, 0.82)); }
 .wkbars .bar { background: linear-gradient(180deg, var(--band-2), var(--band-1)); }
 .btn.primary { background: linear-gradient(120deg, var(--band-1), var(--band-2)); border-color: var(--band-1); color: #fff; }
 /* Look picker in Settings */
@@ -839,7 +839,8 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
         <p class="hint">Pick your colors. This is saved on this device only, so everyone in your league can choose their own.</p>
         <div class="swatches" id="look-palettes" role="group" aria-label="Color palette"></div>
         <details class="how" id="look-teams-wrap"><summary>Team colors</summary>
-          <p class="hint" style="margin:8px 0 10px">Match your favorite NFL team's colors, listed by city.</p>
+          <p class="hint" style="margin:8px 0 10px">Match your favorite NFL team's colors, listed by city. Then pick the uniform: home colors, away whites, or the all-one-color Color Rush look.</p>
+          <div class="chips" id="look-kit" role="group" aria-label="Uniform"></div>
           <div id="look-teams"></div>
         </details>
         <div class="chips" id="look-mode" role="group" aria-label="Light or dark"></div>
@@ -3240,6 +3241,18 @@ const TEAM_COLORS = [
   ['NFC South', [['atl', 'Atlanta', '#A71930', '#000000'], ['car', 'Carolina', '#0085CA', '#101820'], ['no', 'New Orleans', '#101820', '#D3BC8D'], ['tb', 'Tampa Bay', '#D50A0A', '#FF7900']]],
   ['NFC West', [['ari', 'Arizona', '#97233F', '#FFB612'], ['lar', 'Los Angeles (blue & gold)', '#003594', '#FFA300'], ['sf', 'San Francisco', '#AA0000', '#B3995D'], ['sea', 'Seattle', '#002244', '#69BE28']]]
 ];
+// Color Rush: the all-one-color alternates from 2016, the year every team had one. [main, trim]; white = an all-white set.
+const RUSH = {
+  buf: ['#C60C30', '#00338D'], mia: ['#FC4C02', '#008E97'], ne: ['#002244', '#C60C30'], nyj: ['#125740', '#FFFFFF'],
+  bal: ['#241773', '#9E7C0C'], cin: ['#FFFFFF', '#FB4F14'], cle: ['#311D00', '#FF3C00'], pit: ['#101820', '#FFB612'],
+  hou: ['#03202F', '#A71930'], ind: ['#00244A', '#FFFFFF'], jax: ['#D7A22A', '#006778'], ten: ['#4B92DB', '#0C2340'],
+  den: ['#FB4F14', '#002244'], kc: ['#E31837', '#FFB81C'], lv: ['#FFFFFF', '#000000'], lac: ['#002A5E', '#FFC20E'],
+  dal: ['#FFFFFF', '#003594'], nyg: ['#FFFFFF', '#A71930'], phi: ['#0A0A0A', '#A5ACAF'], was: ['#FFB612', '#5A1414'],
+  chi: ['#0B162A', '#C83803'], det: ['#0076B6', '#B0B7BC'], gb: ['#FFFFFF', '#203731'], min: ['#4F2683', '#FFC62F'],
+  atl: ['#A71930', '#FFFFFF'], car: ['#0085CA', '#101820'], no: ['#FFFFFF', '#D3BC8D'], tb: ['#D50A0A', '#B1BABF'],
+  ari: ['#0A0A0A', '#97233F'], lar: ['#003594', '#FFA300'], sf: ['#0A0A0A', '#AA0000'], sea: ['#69BE28', '#002244']
+};
+const KITS = [['home', 'Home'], ['away', 'Away'], ['rush', 'Color Rush']];
 const TEAM_BY_KEY = Object.fromEntries(TEAM_COLORS.flatMap(([, list]) => list.map(t => [t[0], t])));
 // Small color helpers for building a full palette from a team's two colors.
 const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
@@ -3249,13 +3262,40 @@ const lum = h => { const c = hex2rgb(h).map(v => { v /= 255; return v <= 0.03928
 const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 const sat = h => { const c = hex2rgb(h), mx = Math.max(...c), mn = Math.min(...c); return mx ? (mx - mn) / mx : 0; };
 function towards(c, target, bg, ratio) { let t = 0, x = c; while (contrast(x, bg) < ratio && t < 1) { t += 0.05; x = mix(c, target, t); } return x; }
-function teamPalette(primary, secondary) {
+// Builds the palette CSS for a team and uniform. Home: team color banner. Away: white banner with team-color text.
+// Color Rush: the alternate's single color floods the page (all-white Color Rush sets use the away look).
+function kitPalette(team, kit) {
+  const [, , p1, p2] = team;
+  if (kit === 'away') return awayPalette(p1, p2);
+  if (kit === 'rush') {
+    const [main, trim] = RUSH[team[0]] || [p1, p2];
+    return lum(main) > 0.8 ? awayPalette(trim, p1 === trim ? p2 : p1) : teamPalette(main, trim, 2);
+  }
+  return teamPalette(p1, p2);
+}
+const paletteCss = (lightCss, darkCss) => `:root[data-palette="team"]{${lightCss}}@media (prefers-color-scheme: dark){:root[data-palette="team"]:not([data-theme="light"]){${darkCss}}}:root[data-palette="team"][data-theme="dark"]{${darkCss}}`;
+function awayPalette(primary, secondary) {
+  const base = sat(primary) >= 0.25 || sat(secondary) < 0.25 ? primary : secondary;
+  const ink = towards(base, '#000000', '#FFFFFF', 7);
+  const L = { bg: '#F5F6F8', surface: '#FFFFFF', 'surface-2': mix(primary, '#FFFFFF', 0.9), ink: mix(primary, '#05070A', 0.88), muted: mix(primary, '#5A606C', 0.85), line: mix(primary, '#FFFFFF', 0.82) };
+  const D = { bg: '#0C0E12', surface: '#15181E', 'surface-2': mix(primary, '#1C2028', 0.85), ink: '#ECEFF5', muted: '#9AA3B5', line: mix(primary, '#262B35', 0.8) };
+  L.accent = towards(base, '#000000', L.bg, 4.6); L['on-accent'] = '#FFFFFF';
+  D.accent = towards(base, '#FFFFFF', D.surface, 4.6); D['on-accent'] = '#0A0A0A';
+  const popL = base, popD = contrast(base, D.surface) >= 2 ? base : towards(base, '#FFFFFF', D.surface, 2.5);
+  const onPop = p => (contrast(p, '#FFFFFF') >= 3 ? '#FFFFFF' : '#0A0A0A');
+  // The banner stays white like a road jersey, with a stripe of the second color along the bottom.
+  const band = `--band-1:#FFFFFF;--band-2:${mix(secondary, '#FFFFFF', 0.82)};--band-ink:${ink};--band-ink-2:${mix(ink, '#FFFFFF', 0.25)};--logo-tile:${mix(primary, '#000000', lum(primary) < 0.03 ? 0 : 0.2)};`;
+  const vars = (t, p) => Object.entries(t).map(([k, v]) => `--${k}:${v};`).join('') + band + `--pop:${p};--on-pop:${onPop(p)};`;
+  return paletteCss(vars(L, popL), vars(D, popD));
+}
+function teamPalette(primary, secondary, boost = 1) {
   const darkPrimary = lum(primary) < 0.03;
   const band1 = darkPrimary ? primary : mix(primary, '#000000', 0.28), band2 = darkPrimary ? mix(primary, '#FFFFFF', 0.2) : primary;
   // Text color: the more colorful of the two, darkened (light mode) or lightened (dark mode) until it reads clearly.
   const base = sat(primary) >= 0.35 || sat(secondary) < 0.35 ? primary : secondary;
-  const L = { bg: mix(primary, '#FFFFFF', 0.93), surface: '#FFFFFF', 'surface-2': mix(primary, '#FFFFFF', 0.86), ink: mix(primary, '#05070A', 0.86), muted: mix(primary, '#5A606C', 0.82), line: mix(primary, '#FFFFFF', 0.78) };
-  const D = { bg: mix(primary, '#05070C', 0.88), surface: mix(primary, '#0B0F18', 0.82), 'surface-2': mix(primary, '#121826', 0.74), ink: '#ECEFF5', muted: '#9AA3B5', line: mix(primary, '#1E2638', 0.68) };
+  // boost > 1 (Color Rush) tints the whole page much more strongly.
+  const L = { bg: mix(primary, '#FFFFFF', boost > 1 ? 0.8 : 0.93), surface: boost > 1 ? mix(primary, '#FFFFFF', 0.95) : '#FFFFFF', 'surface-2': mix(primary, '#FFFFFF', boost > 1 ? 0.74 : 0.86), ink: mix(primary, '#05070A', 0.86), muted: mix(primary, '#5A606C', 0.8), line: mix(primary, '#FFFFFF', boost > 1 ? 0.66 : 0.78) };
+  const D = { bg: mix(primary, '#05070C', boost > 1 ? 0.7 : 0.88), surface: mix(primary, '#0B0F18', boost > 1 ? 0.64 : 0.82), 'surface-2': mix(primary, '#121826', boost > 1 ? 0.56 : 0.74), ink: '#ECEFF5', muted: boost > 1 ? mix(primary, '#C3CAD6', 0.8) : '#9AA3B5', line: mix(primary, '#1E2638', boost > 1 ? 0.5 : 0.68) };
   L.accent = towards(base, '#000000', L.bg, 4.6); L['on-accent'] = '#FFFFFF';
   D.accent = towards(base, '#FFFFFF', D.surface, 4.6); D['on-accent'] = '#0A0A0A';
   // Pop color for the selected tab: the second team color, or the first if the second would not stand out.
@@ -3265,8 +3305,7 @@ function teamPalette(primary, secondary) {
   const popLight = contrast(pop, L.surface) < 1.4 ? primary : pop;
   const onPop = p => (contrast(p, '#FFFFFF') >= 3 ? '#FFFFFF' : '#0A0A0A');
   const vars = (t, p) => Object.entries(t).map(([k, v]) => `--${k}:${v};`).join('') + `--band-1:${band1};--band-2:${band2};--pop:${p};--on-pop:${onPop(p)};--logo-tile:${band1};`;
-  const lightCss = vars(L, popLight), darkCss = vars(D, popDark);
-  return `:root[data-palette="team"]{${lightCss}}@media (prefers-color-scheme: dark){:root[data-palette="team"]:not([data-theme="light"]){${darkCss}}}:root[data-palette="team"][data-theme="dark"]{${darkCss}}`;
+  return paletteCss(vars(L, popLight), vars(D, popDark));
 }
 function getLook() { try { return JSON.parse(localStorage.getItem('whl:look') || '{}'); } catch (e) { return {}; } }
 function applyLook(look) {
@@ -3274,7 +3313,7 @@ function applyLook(look) {
   const team = String(look.palette || '').startsWith('team:') ? TEAM_BY_KEY[look.palette.slice(5)] : null;
   let st = document.getElementById('team-style');
   if (team) {
-    look.css = teamPalette(team[2], team[3]);
+    look.css = kitPalette(team, look.kit || 'home');
     if (!st) { st = document.createElement('style'); st.id = 'team-style'; document.head.appendChild(st); }
     st.textContent = look.css;
     el.dataset.palette = 'team';
@@ -3291,13 +3330,27 @@ function renderLook() {
   const look = getLook(), pal = look.palette || 'blitz', mode = look.mode || 'auto';
   $('#look-palettes').innerHTML = PALETTES.map(([k, name, b1, b2, pop]) =>
     `<button class="swatch" type="button" data-palette="${k}" aria-pressed="${pal === k}"><span class="sw" style="background:linear-gradient(120deg,${b1},${b2})"><i style="background:${pop}"></i></span>${esc(name)}</button>`).join('');
-  $('#look-teams').innerHTML = TEAM_COLORS.map(([group, list]) => `<div class="teamsw-group">${group}</div><div class="teamsw">${list.map(([k, name, p1, p2]) =>
-    `<button class="swatch" type="button" data-palette="team:${k}" aria-pressed="${pal === 'team:' + k}"><span class="sw" style="background:linear-gradient(120deg,${lum(p1) < 0.03 ? p1 : mix(p1, '#000000', 0.28)},${lum(p1) < 0.03 ? mix(p1, '#FFFFFF', 0.2) : p1})"><i style="background:${p2}"></i></span>${esc(name)}</button>`).join('')}</div>`).join('');
+  const kit = look.kit || 'home';
+  $('#look-kit').innerHTML = KITS.map(([k, l]) => `<button class="chip" type="button" data-kit="${k}" aria-pressed="${kit === k}">${l}</button>`).join('');
+  const preview = (t) => {
+    const [k, , p1, p2] = t;
+    let main = p1, trim = p2;
+    if (kit === 'rush' && RUSH[k]) [main, trim] = RUSH[k];
+    if (kit === 'away' || lum(main) > 0.8) { const c = lum(main) > 0.8 ? trim : p1; return `background:linear-gradient(120deg,#FFFFFF 55%,${mix(kit === 'away' ? p2 : p1, '#FFFFFF', 0.6)});box-shadow:inset 0 0 0 1px var(--line)"><i style="background:${c}`; }
+    return `background:linear-gradient(120deg,${lum(main) < 0.03 ? main : mix(main, '#000000', 0.28)},${lum(main) < 0.03 ? mix(main, '#FFFFFF', 0.2) : main})"><i style="background:${trim}`;
+  };
+  $('#look-teams').innerHTML = TEAM_COLORS.map(([group, list]) => `<div class="teamsw-group">${group}</div><div class="teamsw">${list.map(t =>
+    `<button class="swatch" type="button" data-palette="team:${t[0]}" aria-pressed="${pal === 'team:' + t[0]}"><span class="sw" style="${preview(t)}"></i></span>${esc(t[1])}</button>`).join('')}</div>`).join('');
   if (pal.startsWith('team:')) $('#look-teams-wrap').open = true;
   $('#look-mode').innerHTML = LOOK_MODES.map(([k, l]) => `<button class="chip" type="button" data-mode="${k}" aria-pressed="${mode === k}">${l}</button>`).join('');
 }
 $('#look-palettes').addEventListener('click', e => { const b = e.target.closest('[data-palette]'); if (b) applyLook({ ...getLook(), palette: b.dataset.palette }); });
 $('#look-teams').addEventListener('click', e => { const b = e.target.closest('[data-palette]'); if (b) applyLook({ ...getLook(), palette: b.dataset.palette }); });
+$('#look-kit').addEventListener('click', e => {
+  const b = e.target.closest('[data-kit]'); if (!b) return;
+  const look = { ...getLook(), kit: b.dataset.kit };
+  if (String(look.palette || '').startsWith('team:')) applyLook(look); else { try { localStorage.setItem('whl:look', JSON.stringify(look)); } catch (x) {} renderLook(); }
+});
 $('#look-mode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) applyLook({ ...getLook(), mode: b.dataset.mode }); });
 renderLook();
 
